@@ -238,6 +238,7 @@ scripts/
 - Alice HybridDeleGator: [`0x0F85A095...`](https://basescan.org/address/0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52)
 - USDC approve via FROST + delegation: [`0xc5ada41b...`](https://basescan.org/tx/0xc5ada41b8194ef320ce79d92f5efc5ed18ecfe735ed86f453178c8c16ceb3685)
 - Uniswap swap (2 USDC -> WETH) via FROST + delegation: [`0x1b9b9cca...`](https://basescan.org/tx/0x1b9b9cca4ae7082344ccbec1032548120ff100936a756b67b1a4ec0cb71ca518)
+- XMTP ceremony + Uniswap swap (5 USDC -> WETH): [`0xbde553f3...`](https://basescan.org/tx/0xbde553f3d87868d35809839348b8daa567abcbad02a2f4fd2d0db201465545dd)
 - USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - Uniswap SwapRouter02: `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`
 

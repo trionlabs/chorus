@@ -9,9 +9,9 @@ import {
   http,
   keccak256,
 } from "viem";
-import { baseSepolia } from "viem/chains";
 import { getPublicKey } from "./frost/cli.js";
 import { createSubmitter } from "./chain/submit.js";
+import { getChain, getRpcUrl } from "./chain/config.js";
 import { createSigningCeremony } from "./ceremony/signing.js";
 import {
   createRuntime,
@@ -45,7 +45,6 @@ const SIGNERS = 3;
 
 const CONTRACT_ADDRESS = (process.env.CONTRACT_ADDRESS ?? "") as Hex;
 const DEPLOYER_KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
-const RPC = process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org";
 
 const AGENT_NAMES = ["Guard", "Judge", "Steward"];
 
@@ -64,6 +63,10 @@ async function main() {
     process.exit(1);
   }
 
+  const chain = getChain();
+  const rpcUrl = getRpcUrl(chain);
+  console.log(`chain: ${chain.name}`);
+
   // frost keys
   const keysDir = process.env.FROST_KEYS_DIR ?? ".frost";
   const pk = getPublicKey(keysDir);
@@ -78,8 +81,8 @@ async function main() {
 
   // --- set up real delegation ---
   const aliceAccount = privateKeyToAccount(DEPLOYER_KEY);
-  const publicClient = createPublicClient({ chain: baseSepolia, transport: http(RPC) });
-  const env = getDeleGatorEnvironment(baseSepolia.id);
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const env = getDeleGatorEnvironment(chain.id);
 
   const smartAccount = await toMetaMaskSmartAccount({
     implementation: Implementation.Hybrid,
@@ -162,7 +165,7 @@ async function main() {
     committeeId: committeeId as `0x${string}`,
     delegationManager: env.DelegationManager,
     walletKey: DEPLOYER_KEY,
-    rpcUrl: RPC,
+    rpcUrl: rpcUrl,
   });
   onSubmitTx = async (sig) => {
     const result = await submitter.submitDelegated(

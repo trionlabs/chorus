@@ -5,9 +5,9 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { agentConsensusAbi } from "./abi.js";
+import { getChain, getRpcUrl } from "./config.js";
 import type { SignatureResult } from "../ceremony/types.js";
 
 export interface SubmitConfig {
@@ -19,15 +19,16 @@ export interface SubmitConfig {
 }
 
 export function createSubmitter(config: SubmitConfig) {
+  const chain = getChain();
   const account = privateKeyToAccount(config.walletKey);
   const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(config.rpcUrl),
+    chain,
+    transport: http(config.rpcUrl ?? getRpcUrl(chain)),
   });
   const walletClient = createWalletClient({
     account,
-    chain: baseSepolia,
-    transport: http(config.rpcUrl),
+    chain,
+    transport: http(config.rpcUrl ?? getRpcUrl(chain)),
   });
 
   return {
@@ -51,7 +52,7 @@ export function createSubmitter(config: SubmitConfig) {
           signature.ry,
           signature.z,
         ],
-        chain: baseSepolia,
+        chain: chain,
         account,
       });
 
