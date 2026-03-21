@@ -211,10 +211,24 @@ scripts/
 
 ## Hackathon tracks
 
-- **Synthesis Open Track** - agents that cooperate via FROST consensus
-- **Agents With Receipts (ERC-8004)** - FROST signature as cryptographic receipt
-- **Let the Agent Cook** - fully autonomous committee decisions
-- **Best Use of Delegations** - human delegates to threshold committee via ERC-7710
-- **Uniswap** - agents execute swaps within delegated bounds
+### Synthesis Open Track - Agents That Cooperate
+
+FROST is a coordination primitive for AI agents. Three agents (Guard, Judge, Steward) independently evaluate a proposal over XMTP. Each agent's partial signature IS its vote. When 2-of-3 agree, their partial signatures combine into a single Schnorr signature - cryptographic proof of cooperation without a voting protocol, governance token, or multisig contract. The committee acts as one entity on-chain: one address, one signature, one verification. The agents coordinate through encrypted XMTP messages, producing commitments and signature shares across two rounds. No centralized coordinator can forge the result.
+
+### Agents With Receipts - ERC-8004
+
+The FROST signature is the receipt. Each on-chain `ConsensusReached` event records which committee reached consensus, the action hash they signed, and the nonce (preventing replay). The committee is registered on ERC-8004's Identity Registry on Base mainnet ([tx](https://basescan.org/tx/0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a)) with metadata describing its agents, threshold, group public key, and protocol. The 96-byte signature is verifiable by anyone calling `FROST.verify()` on-chain - a permanent, tamper-proof receipt that multiple independent agents evaluated and agreed.
+
+### Let the Agent Cook - No Humans Required
+
+Once Alice signs the ERC-7710 delegation, no human is in the loop. Agents receive proposals, evaluate independently using their role-specific criteria (risk analysis, policy compliance, operational viability), run the FROST signing ceremony over XMTP, and submit the signed transaction on-chain. The contract verifies the signature, redeems the delegation, enforces caveats, and executes. Alice can walk away. The agents operate autonomously within her bounds. Demonstrated end-to-end: a 5 USDC Uniswap swap executed from Alice's smart account without any human approval after the initial delegation ([tx](https://sepolia.basescan.org/tx/0x109b168980bae7bdbf138c1d1a56a0e94597d09ca43d2a9d2d2f0a8453fe4b34)).
+
+### Best Use of Delegations - ERC-7710
+
+Alice creates an ERC-7710 delegation from her HybridDeleGator smart account to the AgentConsensus contract with three caveats: AllowedTargets (only Uniswap Router and USDC), AllowedMethods (only `exactInputSingle` and `approve`), and ERC20TransferAmount (max 100 USDC). The delegation is signed off-chain and stored as JSON. When the committee FROST-signs an action, AgentConsensus calls `DelegationManager.redeemDelegations()` with the signed delegation chain. The DelegationManager validates Alice's signature, enforces every caveat, and executes the action from Alice's account. Two independent layers of control: FROST consensus ensures agents agreed, delegation caveats ensure the action is within Alice's policy. Even if all 3 agents are compromised and produce a valid FROST signature for an out-of-bounds action, the DelegationManager rejects it.
+
+### Uniswap
+
+The committee executes real token swaps on Uniswap V3 (SwapRouter02) on Base Sepolia. The flow: agents evaluate a swap proposal (5 USDC for WETH), each independently checking risk, compliance, and viability. FROST ceremony produces the signature. AgentConsensus redeems Alice's delegation. Alice's smart account calls `exactInputSingle` on the Uniswap Router. Real USDC moves, real WETH received. Demonstrated with test USDC on Base Sepolia - Alice started with 20 USDC, the committee swapped 5, leaving 15 ([swap tx](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)). The delegation restricts swaps to max 100 USDC on Uniswap only - the committee cannot send tokens elsewhere or call other contracts.
 
 Built for [The Synthesis](https://synthesis.md/hack/) hackathon.
