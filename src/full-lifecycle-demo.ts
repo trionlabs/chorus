@@ -57,7 +57,7 @@ function explorerAddr(chain: { id: number }, addr: string): string {
 }
 
 const POLICIES: Policy[] = [
-  { maxValue: 3_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
+  { maxValue: 500_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] }, // guard: max 0.5 USDC
   { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
   { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
 ];
@@ -250,14 +250,14 @@ async function main() {
     args: [{
       tokenIn: USDC, tokenOut: WETH, fee: chain.id === 8453 ? 500 : 3000,
       recipient: smartAccount.address,
-      amountIn: 5_000_000n, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
+      amountIn: 1_000_000n, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
     }],
   });
   const swapExec = createExecution({ target: SWAP_ROUTER, value: 0n, callData: swapCalldata });
   const execCalldatas = encodeExecutionCalldatas([[swapExec]]);
   const mode = ("0x" + "00".repeat(32)) as Hex;
 
-  console.log("swap: 5 USDC -> WETH on uniswap");
+  console.log("swap: 1 USDC -> WETH on uniswap");
 
   await pause("delegation created. next: signing ceremony over XMTP");
 
@@ -290,7 +290,7 @@ async function main() {
   };
 
   // proposal shows the swap
-  const tx: Transaction = { to: SWAP_ROUTER as Hex, value: 5_000_000n, data: swapCalldata as Hex };
+  const tx: Transaction = { to: SWAP_ROUTER as Hex, value: 1_000_000n, data: swapCalldata as Hex };
 
   const configs: AgentConfig[] = NAMES.map((name, i) => ({
     name, shareIndex: i, keysDir, threshold: THRESHOLD, totalSigners: SIGNERS, onSubmitTx,
@@ -345,10 +345,10 @@ async function main() {
   }
 
   // broadcast proposal
-  console.log("proposal: swap 5 USDC for WETH on uniswap (via alice's delegation)");
+  console.log("proposal: swap 1 USDC for WETH on uniswap (via alice's delegation)");
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
-    transaction: tx, rationale: "swap 5 USDC for WETH via uniswap", timestamp: Date.now(),
+    transaction: tx, rationale: "swap 1 USDC for WETH via uniswap", timestamp: Date.now(),
   });
 
   console.log("waiting for signing ceremony + on-chain execution...\n");
