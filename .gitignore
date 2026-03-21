@@ -5,6 +5,7 @@ dist/
 *.log
 .DS_Store
 contracts/lib/
+frost-dkg/target/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
