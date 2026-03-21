@@ -9,6 +9,7 @@
     "demo": "tsx src/demo.ts",
     "demo:xmtp": "tsx src/xmtp-demo.ts",
     "demo:dkg": "tsx src/dkg-demo.ts",
+    "demo:lifecycle": "tsx src/full-lifecycle-demo.ts",
     "agent": "tsx src/agent/run.ts"
   },
   "dependencies": {
