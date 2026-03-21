@@ -376,31 +376,8 @@ async function main() {
 
     agents[idx]!.on("frost/propose", async (msg, reply) => {
       if (msg.type !== "frost/propose") return;
-      const useAi = process.env.USE_AI === "true" || process.argv.includes("--ai");
-      let result;
-      if (useAi) {
-        const { aiEvaluate } = await import("./agent/ai-evaluator.js");
-        const { AGENT_ROLES } = await import("./agent/config.js");
-        const role = AGENT_ROLES[idx]!;
-        console.log(`\n${"=".repeat(60)}`);
-        console.log(`[${NAMES[idx]}] evaluating with Claude...`);
-        console.log(`  ${DIM}role: ${role.description}${RESET}`);
-        result = await aiEvaluate(msg.transaction, role, {
-          swapDescription: "swap 0.5 USDC for WETH on Uniswap V3 via exactInputSingle",
-          usdcBalance: `${Number(usdcBal) / 1e6} USDC`,
-          delegationCaveats: "AllowedTargets: Uniswap Router + USDC only. AllowedMethods: exactInputSingle + approve only. Max 100 USDC per tx.",
-          recentProposals: 0,
-        });
-        const color = result.approved ? GREEN : RED;
-        const icon = result.approved ? "+" : "X";
-        console.log(`  ${BOLD}${color}[${icon}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET}: ${result.reason}`);
-        console.log(`${"=".repeat(60)}`);
-      } else {
-        result = evaluate(msg.transaction, POLICIES[idx]!);
-        const color = result.approved ? GREEN : RED;
-        const icon = result.approved ? "+" : "X";
-        console.log(`\n${BOLD}${color}  [${icon}] [${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET} ${DIM}- ${result.reason}${RESET}`);
-      }
+      // use pre-evaluated result (already displayed above)
+      const result = preEvalResults[idx]!;
       contexts[idx] = createSigningCeremony(
         { proposalId: msg.proposalId, proposer: msg.proposer, transaction: msg.transaction, timestamp: msg.timestamp },
         idx, THRESHOLD, SIGNERS, actionHash,
@@ -416,12 +393,51 @@ async function main() {
   // broadcast proposal
   const signingStart = Date.now();
   console.log(`${BOLD}proposal:${RESET} swap 0.5 USDC for WETH on uniswap (via alice's delegation)\n`);
+
+  // pre-evaluate all agents BEFORE broadcasting (so we can display cleanly)
+  const useAi = process.env.USE_AI === "true" || process.argv.includes("--ai");
+  const preEvalResults: { approved: boolean; reason: string }[] = [];
+
+  for (let i = 0; i < SIGNERS; i++) {
+    if (useAi) {
+      const { aiEvaluate } = await import("./agent/ai-evaluator.js");
+      const { AGENT_ROLES } = await import("./agent/config.js");
+      const role = AGENT_ROLES[i]!;
+      console.log(`${"=".repeat(60)}`);
+      console.log(`${BOLD}[${NAMES[i]}]${RESET} evaluating with Claude...`);
+      console.log(`  ${DIM}role: ${role.description}${RESET}`);
+      const result = await aiEvaluate(tx, role, {
+        swapDescription: "swap 0.5 USDC for WETH on Uniswap V3 via exactInputSingle",
+        usdcBalance: `${Number(usdcBal) / 1e6} USDC`,
+        delegationCaveats: "AllowedTargets: Uniswap Router + USDC only. AllowedMethods: exactInputSingle + approve only. Max 100 USDC per tx.",
+        recentProposals: 0,
+      });
+      const color = result.approved ? GREEN : RED;
+      const icon = result.approved ? "+" : "X";
+      console.log(`  ${BOLD}${color}[${icon}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET}: ${result.reason}`);
+      console.log(`${"=".repeat(60)}\n`);
+      preEvalResults.push(result);
+    } else {
+      const result = evaluate(tx, POLICIES[i]!);
+      const color = result.approved ? GREEN : RED;
+      const icon = result.approved ? "+" : "X";
+      console.log(`${BOLD}${color}  [${icon}] [${NAMES[i]}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET} ${DIM}- ${result.reason}${RESET}`);
+      preEvalResults.push(result);
+    }
+  }
+
+  const acceptCount = preEvalResults.filter(r => r.approved).length;
+  const rejectCount = preEvalResults.filter(r => !r.approved).length;
+  console.log(`\n${BOLD}result: ${GREEN}${acceptCount} accept${RESET}, ${RED}${rejectCount} reject${RESET} - ${acceptCount >= THRESHOLD ? `${GREEN}threshold met (${THRESHOLD}-of-${SIGNERS})${RESET}` : `${RED}threshold NOT met${RESET}`}`);
+
+  await pause("evaluations complete. next: FROST signing ceremony over XMTP");
+
+  console.log(`\n${DIM}broadcasting proposal + starting FROST ceremony over XMTP...${RESET}\n`);
+
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
     transaction: tx, rationale: "swap 0.5 USDC for WETH via uniswap", timestamp: Date.now(),
   });
-
-  console.log(`\n${DIM}waiting for FROST ceremony over XMTP...${RESET}\n`);
 
   // wait for ceremony to complete (check periodically)
   for (let t = 0; t < 30; t++) {
