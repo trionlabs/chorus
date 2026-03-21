@@ -12,3 +12,4 @@ contracts/broadcast/
 delegation.json
 src/**/*.js
 scripts/**/*.js
+standard-json-input*.json

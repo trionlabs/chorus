@@ -4,7 +4,6 @@ import {
   createDelegation,
   createCaveat,
   Implementation,
-  redeemDelegations,
   createExecution,
 } from "@metamask/delegation-toolkit";
 import {
@@ -13,7 +12,6 @@ import {
   http,
   encodeAbiParameters,
   keccak256,
-  parseAbi,
   type Address,
   type Hex,
 } from "viem";
@@ -113,12 +111,6 @@ async function main() {
     callData: "0x04e45aaf" as Hex, // just the selector, will fail but proves the flow
   });
 
-  // the permissionContext, mode, and executionCallData for the delegation
-  // these need to match what AgentConsensus passes to DelegationManager
-  const permContext = encodeAbiParameters(
-    [{ type: "bytes" }], // simplified - real encoding is more complex
-    ["0x00" as Hex]
-  );
 
   console.log("committee:", committeeId.slice(0, 18) + "...");
   console.log("delegation manager:", env.DelegationManager);

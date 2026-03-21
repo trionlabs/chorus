@@ -145,3 +145,9 @@ All on Base Sepolia unless noted.
 - FROST + delegation + Uniswap swap: [0x9137adb6...](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)
 - FROST + delegation + Uniswap (XMTP): [0x109b1689...](https://sepolia.basescan.org/tx/0x109b168980bae7bdbf138c1d1a56a0e94597d09ca43d2a9d2d2f0a8453fe4b34)
 - ERC-8004 committee (Base mainnet): [0xc4387b14...](https://basescan.org/tx/0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a)
+
+**Base mainnet:**
+- AgentConsensus (verified): [0xEE185FD0...](https://basescan.org/address/0xEE185FD094A4624B95120CBa8180c92f51794162)
+- FROST execution: [0x6bea2ec9...](https://basescan.org/tx/0x6bea2ec95bb4e679231274179e23e882117d7149dc7b8a309b49afbcb77ff59a)
+- Uniswap swap (2 USDC -> WETH): [0x1b9b9cca...](https://basescan.org/tx/0x1b9b9cca4ae7082344ccbec1032548120ff100936a756b67b1a4ec0cb71ca518)
+- XMTP ceremony + swap (5 USDC -> WETH): [0xbde553f3...](https://basescan.org/tx/0xbde553f3d87868d35809839348b8daa567abcbad02a2f4fd2d0db201465545dd)

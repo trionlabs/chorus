@@ -3,7 +3,6 @@ import {
   getDeleGatorEnvironment,
   createDelegation,
   Implementation,
-  redeemDelegations,
   createExecution,
 } from "@metamask/delegation-toolkit";
 import {

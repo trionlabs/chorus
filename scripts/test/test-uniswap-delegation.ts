@@ -2,7 +2,6 @@ import {
   toMetaMaskSmartAccount,
   getDeleGatorEnvironment,
   createDelegation,
-  createCaveat,
   Implementation,
   createExecution,
 } from "@metamask/delegation-toolkit";

@@ -177,8 +177,18 @@ async function main() {
     return { txHash: result.txHash, success: result.success };
   };
 
-  // generate xmtp wallet keys
-  const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
+  // load persistent XMTP keys if available, otherwise generate fresh
+  let walletKeys: Hex[];
+  const keysFile = join(keysDir, "agents", "xmtp-keys.json");
+  try {
+    const { readFileSync } = await import("fs");
+    const saved = JSON.parse(readFileSync(keysFile, "utf-8"));
+    walletKeys = [saved.guard.key, saved.judge.key, saved.steward.key] as Hex[];
+    console.log("loaded persistent XMTP keys");
+  } catch {
+    walletKeys = Array.from({ length: SIGNERS }, () => generatePrivateKey());
+    console.log("using fresh XMTP keys (no persistent keys found)");
+  }
 
   // create agents with fresh db paths
   const runDir = mkdtempSync(join(tmpdir(), "chorus-run-"));
@@ -237,7 +247,15 @@ async function main() {
     agent.on("frost/propose", async (msg, reply) => {
       if (msg.type !== "frost/propose") return;
 
-      const result = evaluate(msg.transaction, POLICIES[idx]!);
+      const useAi = process.env.USE_AI === "true" || process.argv.includes("--ai");
+      let result;
+      if (useAi) {
+        const { aiEvaluate } = await import("./agent/ai-evaluator.js");
+        const { AGENT_ROLES } = await import("./agent/config.js");
+        result = await aiEvaluate(msg.transaction, AGENT_ROLES[idx]!);
+      } else {
+        result = evaluate(msg.transaction, POLICIES[idx]!);
+      }
       console.log(`[${AGENT_NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
 
       contexts[idx] = createSigningCeremony(
