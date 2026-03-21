@@ -174,6 +174,9 @@ pnpm demo
 # run xmtp multi-agent demo (3 agents, frost ceremony, on-chain execution)
 pnpm demo:xmtp
 
+# run DKG over XMTP (distributed key generation + signing)
+pnpm demo:dkg
+
 # run a standalone agent
 AGENT_ROLE=guard AGENT_WALLET_KEY=0x... COMMITTEE_ID=0x... pnpm agent
 
@@ -205,6 +208,7 @@ src/
   frost/cli.ts              - safe-frost CLI subprocess wrappers
   frost/executor.ts         - maps ceremony actions to CLI calls
   ceremony/signing.ts       - signing ceremony state machine
+  ceremony/dkg.ts           - DKG ceremony state machine (available for production use)
   ceremony/types.ts         - state enums, action types
   xmtp/agent.ts             - XMTP agent with self-delivery + DM enforcement
   xmtp/messages.ts          - protocol message types

@@ -178,7 +178,7 @@ DKG (Distributed Key Generation) creates key shares without any single party eve
 
 ```bash
 # generate your part1 secret and commitments
-echo '{"dkg-part1": {"identifier": <your_index+1>, "max_signers": 3, "min_signers": 2}}' | frost-dkg
+echo '{"command":"dkg-part1","identifier":<your_index+1>,"max_signers":3,"min_signers":2}' | ./frost-dkg/target/release/frost-dkg
 ```
 
 Broadcast the `round1_package` from the response as `dkg/round1`.
@@ -187,7 +187,7 @@ Broadcast the `round1_package` from the response as `dkg/round1`.
 
 ```bash
 # process all peers' round1 packages, generate secret shares
-echo '{"dkg-part2": {"round1_secret_package": "<your_secret>", "round1_packages": {"1": "<hex>", "2": "<hex>", "3": "<hex>"}}}' | frost-dkg
+echo '{"command":"dkg-part2","round1_secret_package":"<your_secret>","round1_packages":{"1":"<hex>","2":"<hex>","3":"<hex>"}}' | ./frost-dkg/target/release/frost-dkg
 ```
 
 The response contains `round2_packages` - one per peer. Send each peer's share via XMTP DM as `dkg/round2`.
@@ -198,7 +198,7 @@ The response contains `round2_packages` - one per peer. Send each peer's share v
 
 ```bash
 # finalize with all round2 shares received
-echo '{"dkg-part3": {"round2_secret_package": "<your_secret>", "round1_packages": {...}, "round2_packages": {...}}}' | frost-dkg
+echo '{"command":"dkg-part3","round2_secret_package":"<your_secret>","round1_packages":{...},"round2_packages":{...}}' | ./frost-dkg/target/release/frost-dkg
 ```
 
 Save the `key_package` (your key share) and `public_key_package` (group public key). Broadcast `dkg/confirm` with the public key.

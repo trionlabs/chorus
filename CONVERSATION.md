@@ -116,6 +116,17 @@ The agent's contributions were implementation:
 - Produced the gas benchmark test
 - Registered the committee on ERC-8004
 
+## DKG Over XMTP
+
+The human pushed for real distributed key generation, not just trusted dealer. Built a Rust `frost-dkg` CLI using `frost-secp256k1` crate (same as safe-frost for format compatibility). First attempt used `frost-secp256k1-evm` (the EVM fork) which produced incompatible key files - safe-frost couldn't deserialize them. Switched to `frost-secp256k1` (standard) - same postcard serialization, same key sizes (136 bytes per share, 234 bytes public key package).
+
+Three agents run DKG over XMTP:
+- Round 1: broadcast commitments to the group
+- Round 2: send secret shares via XMTP DMs only (the agent enforces DM-only and drops any round 2 arriving via group - this is security-critical)
+- Round 3: finalize and confirm
+
+Added `writeDkgKeys()` that converts DKG hex output to safe-frost binary key files. This bridges the two systems: DKG generates keys distributedly, then safe-frost uses them for signing ceremonies. Tested end-to-end: DKG over XMTP -> write key files -> FROST signing -> valid signature.
+
 ## What Worked
 
 - safe-frost as a dependency. Battle-tested Schnorr verification at 5,327 gas.
