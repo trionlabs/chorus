@@ -165,6 +165,7 @@ scripts/
 - Alice HybridDeleGator: [`0x0F85A095...`](https://sepolia.basescan.org/address/0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52)
 - DelegationManager: [`0xdb9B1e94...`](https://sepolia.basescan.org/address/0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3)
 - Full flow (FROST + ERC-7710 delegation): [`0x4b852118...`](https://sepolia.basescan.org/tx/0x4b852118d404914bf0775ad4e4b37cb2ae6e8f6324e1995a405248aeff4cb787)
+- Uniswap swap via FROST + delegation: [`0x9137adb6...`](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)
 - USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - Uniswap SwapRouter02: `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`
 
