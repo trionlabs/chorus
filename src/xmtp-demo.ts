@@ -1,4 +1,4 @@
-import { mkdtempSync } from "fs";
+import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { generatePrivateKey } from "viem/accounts";
@@ -55,14 +55,12 @@ async function main() {
   // generate xmtp wallet keys
   const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
 
-  // create agents
-  const agents: ChorusAgent[] = walletKeys.map((key, i) =>
-    new ChorusAgent(
-      key,
-      AGENT_NAMES[i]!,
-      join(tmpdir(), `chorus-xmtp-${AGENT_NAMES[i]!.toLowerCase()}`),
-    )
-  );
+  // create agents with fresh db paths each run
+  const runDir = mkdtempSync(join(tmpdir(), "chorus-run-"));
+  const agents: ChorusAgent[] = walletKeys.map((key, i) => {
+    const dbPath = join(runDir, `${AGENT_NAMES[i]!.toLowerCase()}.db3`);
+    return new ChorusAgent(key, AGENT_NAMES[i]!, dbPath);
+  });
 
   // per-agent ceremony state
   const contexts: (SigningContext | null)[] = Array(SIGNERS).fill(null);
