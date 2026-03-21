@@ -27,6 +27,8 @@ async function main() {
     abi: agentConsensusAbi,
     functionName: "registerCommittee",
     args: [pk.px, pk.py, 2n],
+    chain: walletClient.chain,
+    account: walletClient.account!,
   });
 
   console.log(`tx: ${hash}`);
