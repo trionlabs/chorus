@@ -136,6 +136,12 @@ At 50-of-100, FROST costs the same as a single token transfer. A Safe multisig c
 
 Beyond gas, FROST provides signer privacy - you can't tell which agents signed from the on-chain signature. With Safe multisig, each signer's address is recoverable.
 
+## Key generation
+
+Key shares are generated using a trusted dealer (`safe-frost split`) for the demo. The FROST protocol supports full distributed key generation (DKG) where no party ever sees the complete key - the DKG ceremony state machine is implemented in `src/ceremony/dkg.ts` and the XMTP message types are defined for all three DKG rounds. In production, DKG would run over XMTP with round 2 secret shares sent via DM only.
+
+The signing ceremony (per-transaction FROST protocol) runs fully over XMTP in the demo.
+
 ## Setup
 
 ```bash
@@ -145,8 +151,11 @@ cd contracts/lib/safe-frost && cargo install --path . && cd ../../..
 # install dependencies
 pnpm install
 
-# generate frost keys (2-of-3)
+# generate frost keys (2-of-3, trusted dealer)
 safe-frost split --threshold 2 --signers 3
+
+# or use --mainnet for mainnet scripts
+CHAIN=mainnet npx tsx scripts/deploy/register-committee.ts
 
 # run local demo (no xmtp, no chain)
 pnpm demo
@@ -160,14 +169,17 @@ AGENT_ROLE=guard AGENT_WALLET_KEY=0x... COMMITTEE_ID=0x... pnpm agent
 # run foundry tests
 cd contracts && forge test
 
-# deploy contract to base sepolia
+# deploy contract
 cd contracts && forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC --private-key $DEPLOYER_PRIVATE_KEY --broadcast
 
-# register committee on-chain
-npx tsx scripts/register-committee.ts
+# register committee (use CHAIN=mainnet for mainnet)
+npx tsx scripts/deploy/register-committee.ts
+
+# deploy alice's smart account
+npx tsx scripts/deploy/deploy-alice.ts
 
 # create erc-7710 delegation (alice -> committee, uniswap + 100 usdc cap)
-npx tsx scripts/create-delegation.ts
+npx tsx scripts/deploy/create-delegation.ts
 ```
 
 ## Project structure
@@ -192,9 +204,18 @@ src/
   chain/client.ts           - viem client for Base Sepolia
 
 scripts/
-  register-committee.ts     - on-chain committee registration
-  create-delegation.ts      - ERC-7710 delegation with Uniswap caveats
-  test-onchain.ts           - on-chain FROST verification test
+  deploy/
+    register-committee.ts   - on-chain committee registration
+    deploy-alice.ts         - deploy Alice's HybridDeleGator
+    create-delegation.ts    - ERC-7710 delegation with Uniswap caveats
+    register-erc8004.ts     - ERC-8004 identity registration
+  test/
+    test-onchain.ts         - FROST verification test
+    test-redeem.ts          - delegation redemption test
+    test-uniswap-delegation.ts - full Uniswap swap via delegation
+    test-caveat-rejection.ts   - caveat enforcement demo
+    test-mainnet.ts         - mainnet FROST verification
+    test-mainnet-swap.ts    - mainnet Uniswap swap
 ```
 
 ## On-chain proof

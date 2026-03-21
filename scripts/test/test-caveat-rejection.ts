@@ -15,9 +15,9 @@ import {
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { agentConsensusAbi } from "../src/chain/abi.js";
-import { getPublicKey, runLocalCeremony } from "../src/frost/cli.js";
-import { SWAP_ROUTER, USDC } from "../src/uniswap/client.js";
+import { agentConsensusAbi } from "../../src/chain/abi.js";
+import { getPublicKey, runLocalCeremony } from "../../src/frost/cli.js";
+import { SWAP_ROUTER, USDC } from "../../src/uniswap/client.js";
 import {
   encodePermissionContexts,
   encodeExecutionCalldatas,

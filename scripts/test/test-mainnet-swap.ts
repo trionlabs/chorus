@@ -16,8 +16,8 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { agentConsensusAbi } from "../src/chain/abi.js";
-import { getPublicKey, runLocalCeremony } from "../src/frost/cli.js";
+import { agentConsensusAbi } from "../../src/chain/abi.js";
+import { getPublicKey, runLocalCeremony } from "../../src/frost/cli.js";
 import {
   encodePermissionContexts,
   encodeExecutionCalldatas,

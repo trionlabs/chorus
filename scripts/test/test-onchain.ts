@@ -1,8 +1,8 @@
 import { createPublicClient, createWalletClient, http, encodeAbiParameters, keccak256, type Address, type Hex } from "viem";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { agentConsensusAbi } from "../src/chain/abi.js";
-import { runLocalCeremony, getPublicKey } from "../src/frost/cli.js";
+import { agentConsensusAbi } from "../../src/chain/abi.js";
+import { runLocalCeremony, getPublicKey } from "../../src/frost/cli.js";
 
 const CONTRACT = (process.env.CONTRACT_ADDRESS ?? "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4") as Address;
 const KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;

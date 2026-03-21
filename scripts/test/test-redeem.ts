@@ -134,8 +134,8 @@ async function main() {
   // now do it for real: FROST sign and submit through AgentConsensus
   console.log("\n--- full flow: FROST + delegation ---");
 
-  const { getPublicKey: getFrostPubKey, runLocalCeremony } = await import("../src/frost/cli.js");
-  const { agentConsensusAbi } = await import("../src/chain/abi.js");
+  const { getPublicKey: getFrostPubKey, runLocalCeremony } = await import("../../src/frost/cli.js");
+  const { agentConsensusAbi } = await import("../../src/chain/abi.js");
 
   const KEYS_DIR = process.env.FROST_KEYS_DIR ?? ".frost";
   const pk = getFrostPubKey(KEYS_DIR);

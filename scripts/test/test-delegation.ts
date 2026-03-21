@@ -19,9 +19,9 @@ import {
 } from "viem";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { SWAP_ROUTER, USDC } from "../src/uniswap/client.js";
-import { getPublicKey, runLocalCeremony } from "../src/frost/cli.js";
-import { agentConsensusAbi } from "../src/chain/abi.js";
+import { SWAP_ROUTER, USDC } from "../../src/uniswap/client.js";
+import { getPublicKey, runLocalCeremony } from "../../src/frost/cli.js";
+import { agentConsensusAbi } from "../../src/chain/abi.js";
 
 const ALICE_KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 const CONTRACT = (process.env.CONTRACT_ADDRESS ?? "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4") as Address;

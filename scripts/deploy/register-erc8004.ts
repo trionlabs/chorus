@@ -6,7 +6,7 @@ import {
 } from "viem";
 import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { getPublicKey } from "../src/frost/cli.js";
+import { getPublicKey } from "../../src/frost/cli.js";
 
 const PRIVATE_KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 const RPC = process.env.BASE_RPC ?? "https://mainnet.base.org";

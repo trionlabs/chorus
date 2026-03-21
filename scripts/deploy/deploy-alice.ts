@@ -4,20 +4,23 @@ import {
   Implementation,
 } from "@metamask/delegation-toolkit";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
-import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { getChain, getRpcUrl } from "../../src/chain/config.js";
 
 const KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 
 async function main() {
   if (!KEY) { console.error("set DEPLOYER_PRIVATE_KEY"); process.exit(1); }
 
+  const chain = getChain();
+  const rpcUrl = getRpcUrl(chain);
   const account = privateKeyToAccount(KEY);
-  const publicClient = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
-  const walletClient = createWalletClient({ account, chain: base, transport: http("https://mainnet.base.org") });
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
-  const env = getDeleGatorEnvironment(base.id);
+  console.log("chain:", chain.name);
 
+  const env = getDeleGatorEnvironment(chain.id);
   const smartAccount = await toMetaMaskSmartAccount({
     implementation: Implementation.Hybrid,
     deployParams: [account.address, [], [], []],
@@ -27,7 +30,7 @@ async function main() {
     environment: env,
   });
 
-  console.log("counterfactual address:", smartAccount.address);
+  console.log("counterfactual:", smartAccount.address);
 
   const code = await publicClient.getCode({ address: smartAccount.address });
   if (code && code !== "0x") {
@@ -41,18 +44,16 @@ async function main() {
     return;
   }
 
-  console.log("deploying on Base mainnet...");
+  console.log("deploying...");
   const txHash = await walletClient.sendTransaction({
     to: factoryArgs.factory,
     data: factoryArgs.factoryData,
-    chain: base,
+    chain,
     account,
   });
-
   console.log("tx:", txHash);
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   console.log("status:", receipt.status);
-  console.log("https://basescan.org/tx/" + txHash);
 }
 
 main().catch(console.error);

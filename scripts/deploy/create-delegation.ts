@@ -5,7 +5,7 @@ import {
   getDeleGatorEnvironment,
 } from "@metamask/delegation-toolkit";
 import { encodeAbiParameters, type Address, type Hex } from "viem";
-import { SWAP_ROUTER, USDC } from "../src/uniswap/client.js";
+import { SWAP_ROUTER, USDC } from "../../src/uniswap/client.js";
 import { writeFileSync } from "fs";
 
 const ALICE_KEY = (process.env.ALICE_PRIVATE_KEY ?? process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
