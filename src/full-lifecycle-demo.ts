@@ -57,7 +57,7 @@ function explorerAddr(chain: { id: number }, addr: string): string {
 }
 
 const POLICIES: Policy[] = [
-  { maxValue: 500_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] }, // guard: max 0.5 USDC
+  { maxValue: 200_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] }, // guard: max 0.2 USDC
   { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
   { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
 ];
@@ -80,9 +80,9 @@ async function main() {
   console.log(`erc-8004: https://www.8004scan.io/agents/base/35249\n`);
 
   console.log("agent committee:");
-  console.log("  Guard   (index 0) - risk & security     - max 0.5 USDC  - conservative");
-  console.log("  Judge   (index 1) - policy & compliance  - max 100 USDC  - strict");
-  console.log("  Steward (index 2) - treasury & operations - max 100 USDC - pragmatic");
+  console.log("  Guard   (index 0) - risk & security      - max 0.2 USDC  - conservative");
+  console.log("  Judge   (index 1) - policy & compliance   - max 100 USDC  - strict");
+  console.log("  Steward (index 2) - treasury & operations - max 100 USDC  - pragmatic");
 
   await pause("agent roles defined. next: distributed key generation over XMTP");
 
@@ -269,14 +269,14 @@ async function main() {
     args: [{
       tokenIn: USDC, tokenOut: WETH, fee: chain.id === 8453 ? 500 : 3000,
       recipient: smartAccount.address,
-      amountIn: 1_000_000n, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
+      amountIn: 500_000n, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
     }],
   });
   const swapExec = createExecution({ target: SWAP_ROUTER, value: 0n, callData: swapCalldata });
   const execCalldatas = encodeExecutionCalldatas([[swapExec]]);
   const mode = ("0x" + "00".repeat(32)) as Hex;
 
-  console.log("swap: 1 USDC -> WETH on uniswap");
+  console.log("swap: 0.5 USDC -> WETH on uniswap");
 
   await pause("delegation created. next: signing ceremony over XMTP");
 
@@ -313,7 +313,7 @@ async function main() {
   };
 
   // proposal shows the swap
-  const tx: Transaction = { to: SWAP_ROUTER as Hex, value: 1_000_000n, data: swapCalldata as Hex };
+  const tx: Transaction = { to: SWAP_ROUTER as Hex, value: 500_000n, data: swapCalldata as Hex };
 
   const configs: AgentConfig[] = NAMES.map((name, i) => ({
     name, shareIndex: i, keysDir, threshold: THRESHOLD, totalSigners: SIGNERS, onSubmitTx,
@@ -358,15 +358,22 @@ async function main() {
       if (useAi) {
         const { aiEvaluate } = await import("./agent/ai-evaluator.js");
         const { AGENT_ROLES } = await import("./agent/config.js");
+        const role = AGENT_ROLES[idx]!;
+        console.log(`\n${"=".repeat(60)}`);
         console.log(`[${NAMES[idx]}] evaluating with Claude...`);
-        result = await aiEvaluate(msg.transaction, AGENT_ROLES[idx]!, {
+        console.log(`  role: ${role.description}`);
+        result = await aiEvaluate(msg.transaction, role, {
           usdcBalance: `${Number(usdcBal) / 1e6} USDC`,
           delegationCaveats: "AllowedTargets: Uniswap Router + USDC. AllowedMethods: exactInputSingle + approve. Max 100 USDC.",
         });
+        const icon = result.approved ? "[+]" : "[X]";
+        console.log(`  ${icon} ${result.approved ? "ACCEPT" : "REJECT"}: ${result.reason}`);
+        console.log(`${"=".repeat(60)}`);
       } else {
         result = evaluate(msg.transaction, POLICIES[idx]!);
+        const icon = result.approved ? "[+]" : "[X]";
+        console.log(`\n  ${icon} [${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
       }
-      console.log(`[${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
       contexts[idx] = createSigningCeremony(
         { proposalId: msg.proposalId, proposer: msg.proposer, transaction: msg.transaction, timestamp: msg.timestamp },
         idx, THRESHOLD, SIGNERS, actionHash,
@@ -381,10 +388,10 @@ async function main() {
 
   // broadcast proposal
   const signingStart = Date.now();
-  console.log("proposal: swap 1 USDC for WETH on uniswap (via alice's delegation)");
+  console.log("proposal: swap 0.5 USDC for WETH on uniswap (via alice's delegation)");
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
-    transaction: tx, rationale: "swap 1 USDC for WETH via uniswap", timestamp: Date.now(),
+    transaction: tx, rationale: "swap 0.5 USDC for WETH via uniswap", timestamp: Date.now(),
   });
 
   console.log("waiting for signing ceremony + on-chain execution...\n");
