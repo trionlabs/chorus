@@ -11,6 +11,7 @@
     "agent": "tsx src/agent/run.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@metamask/delegation-toolkit": "^0.13.0",
     "@xmtp/agent-sdk": "^2.3.0",
     "viem": "^2.47.4"

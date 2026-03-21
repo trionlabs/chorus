@@ -8,6 +8,7 @@ import {
   type SubmitTxCallback,
 } from "./handler.js";
 import { evaluate } from "./evaluator.js";
+import { aiEvaluate } from "./ai-evaluator.js";
 import { AGENT_ROLES, type AgentRole } from "./config.js";
 import type { ProtocolMessage } from "../xmtp/messages.js";
 import type { Hex, SigningContext } from "../ceremony/types.js";
@@ -23,10 +24,11 @@ interface RunAgentOptions {
   committeeId: Hex;
   allowedTargets?: string[];
   onSubmitTx?: SubmitTxCallback;
+  useAi?: boolean;
 }
 
 export async function runAgent(options: RunAgentOptions): Promise<ChorusAgent> {
-  const { role, walletKey, keysDir, threshold, totalSigners, dbPath, committeeId, allowedTargets, onSubmitTx } = options;
+  const { role, walletKey, keysDir, threshold, totalSigners, dbPath, committeeId, allowedTargets, onSubmitTx, useAi } = options;
 
   const policy = {
     ...role.policy,
@@ -71,7 +73,13 @@ export async function runAgent(options: RunAgentOptions): Promise<ChorusAgent> {
   agent.on("frost/propose", async (msg, reply) => {
     if (msg.type !== "frost/propose") return;
 
-    const result = evaluate(msg.transaction, policy);
+    let result;
+    if (useAi) {
+      console.log(`[${role.name}] evaluating with AI...`);
+      result = await aiEvaluate(msg.transaction, role);
+    } else {
+      result = evaluate(msg.transaction, policy);
+    }
     console.log(`[${role.name}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
 
     // compute action hash for this proposal
@@ -146,6 +154,7 @@ async function main() {
   }
 
   const allowedTargets = process.env.ALLOWED_TARGETS?.split(",") ?? [];
+  const useAi = process.env.USE_AI === "true" || process.argv.includes("--ai");
 
   // wire on-chain submission if contract is configured
   let onSubmitTx: SubmitTxCallback | undefined;
@@ -181,10 +190,12 @@ async function main() {
     committeeId,
     allowedTargets,
     onSubmitTx,
+    useAi,
   });
 
   console.log(`[${role.name}] running at ${agent.address}`);
   console.log(`[${role.name}] ${role.description}`);
+  if (useAi) console.log(`[${role.name}] AI evaluation enabled`);
 
   process.on("SIGINT", async () => {
     await agent.stop();
