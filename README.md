@@ -4,7 +4,10 @@ AI agent committees with FROST threshold consensus and human-delegated authority
 
 [FROST](https://frost.zfnd.org/frost.html) (Flexible Round-Optimized Schnorr Threshold) is a protocol where a group of participants can collectively produce a single Schnorr signature without any party ever holding the full private key. If at least t-of-n participants agree, their partial signatures combine into one valid signature. If they don't agree, nothing happens.
 
-A committee of AI agents independently evaluates proposals, reaches threshold agreement via FROST, and executes on-chain - all within human-delegated permissions (ERC-7710). The FROST signature is cryptographic proof that multiple agents agreed. 96 bytes, ~5,600 gas, constant cost regardless of committee size.
+- **No agent holds the private key.** The key is generated distributedly (DKG) and never exists whole - not during creation, not during signing, not ever. Each agent holds only a share.
+- **Constant verification cost.** Whether the committee has 3 agents or 500, on-chain verification costs the same ~5,300 gas. The verifier sees one 96-byte signature, not n individual signatures.
+- **Policy-constrained by delegation.** The committee has zero independent authority. It can only act within the permissions Alice delegates via ERC-7710 - specific contracts, specific methods, specific amounts.
+- **Fully automated over XMTP.** Agents run the entire FROST protocol (DKG key generation and signing ceremonies) over encrypted XMTP messages. No human in the loop after Alice signs the delegation.
 
 ## How it works
 
