@@ -225,7 +225,14 @@ async function main() {
   const delegSig = await smartAccount.signDelegation({ delegation });
   const signedDelegation = { ...delegation, signature: delegSig };
   const permContexts = encodePermissionContexts([[signedDelegation as any]]);
-  console.log("delegation signed (caveats:", delegation.caveats.length, "- uniswap + USDC only)");
+  console.log("\nalice's delegation:");
+  console.log("  delegate: AgentConsensus (the FROST committee)");
+  console.log("  delegator: alice's smart account");
+  console.log("  caveats:");
+  console.log("    - AllowedTargets: Uniswap Router + USDC contract only");
+  console.log("    - AllowedMethods: exactInputSingle (swap) + approve only");
+  console.log("  the committee CANNOT do anything outside these bounds");
+  console.log("  signed off-chain (no tx needed)");
 
   // build swap: 5 USDC -> WETH
   const swapCalldata = encodeFunctionData({
@@ -309,9 +316,13 @@ async function main() {
           console.log(`[${NAMES[idx]}] <- frost/round2 share from ${NAMES[(msg as any).signerIndex]} (XMTP group)`);
         } else if (msg.type === "frost/signature") {
           console.log(`[${NAMES[idx]}] <- frost/signature aggregated (XMTP group)`);
-        } else if (msg.type === "frost/executed" && "txHash" in msg) {
-          console.log(`[${NAMES[idx]}] <- frost/executed: ${(msg as any).txHash}`);
-          console.log(`   explorer: ${explorerUrl(chain, (msg as any).txHash)}`);
+        } else if (msg.type === "frost/executed" && "txHash" in msg && idx === 0) {
+          // only show once (from first agent)
+          const txHash = (msg as any).txHash;
+          if (txHash !== "0x0") {
+            console.log(`\non-chain execution confirmed: ${txHash}`);
+            console.log(`explorer: ${explorerUrl(chain, txHash)}`);
+          }
         }
         await processMsg(msg, reply);
       });
@@ -351,9 +362,16 @@ async function main() {
 
   // results
   for (let i = 0; i < SIGNERS; i++) {
-    if (contexts[i]) {
-      console.log(`[${NAMES[i]}] state: ${contexts[i]!.state}`);
-      if (contexts[i]!.result) console.log(`  sig rx: 0x${contexts[i]!.result!.rx.toString(16).slice(0, 16)}...`);
+    const ctx = contexts[i];
+    if (!ctx) continue;
+    const accepted = ctx.acceptedIndices.has(i);
+    const rejected = ctx.rejectedIndices.has(i);
+    if (rejected) {
+      console.log(`[${NAMES[i]}] REJECTED the proposal (did not participate in signing)`);
+    } else if (ctx.result) {
+      console.log(`[${NAMES[i]}] signed and verified on-chain`);
+    } else if (accepted) {
+      console.log(`[${NAMES[i]}] signed (ceremony completed by coordinator)`);
     }
   }
 
