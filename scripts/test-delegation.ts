@@ -68,7 +68,7 @@ async function main() {
     scope: {
       type: "functionCall" as const,
       targets: [SWAP_ROUTER],
-      selectors: ["0x414bf389"], // exactInputSingle
+      selectors: ["0x04e45aaf"], // exactInputSingle
     },
     caveats: [
       createCaveat(
@@ -110,7 +110,7 @@ async function main() {
   const execution = createExecution({
     target: SWAP_ROUTER,
     value: 0n,
-    callData: "0x414bf389" as Hex, // just the selector, will fail but proves the flow
+    callData: "0x04e45aaf" as Hex, // just the selector, will fail but proves the flow
   });
 
   // the permissionContext, mode, and executionCallData for the delegation

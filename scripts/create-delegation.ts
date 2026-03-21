@@ -33,7 +33,7 @@ async function main() {
     // caveat 2: only exactInputSingle method
     createCaveat(
       env.caveatEnforcers.AllowedMethodsEnforcer,
-      encodeAbiParameters([{ type: "bytes4[]" }], [["0x414bf389"]]),
+      encodeAbiParameters([{ type: "bytes4[]" }], [["0x04e45aaf"]]),
     ),
     // caveat 3: max 100 USDC transfer amount
     createCaveat(
@@ -53,7 +53,7 @@ async function main() {
     scope: {
       type: "functionCall" as const,
       targets: [SWAP_ROUTER],
-      selectors: ["0x414bf389"],
+      selectors: ["0x04e45aaf"],
     },
   });
 
