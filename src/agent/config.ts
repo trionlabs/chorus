@@ -1,5 +1,6 @@
 import type { Hex } from "../ceremony/types.js";
 import type { Policy } from "./evaluator.js";
+import { SWAP_ROUTER, USDC } from "../uniswap/client.js";
 
 export interface AgentIdentity {
   name: string;
@@ -30,8 +31,8 @@ export const GUARD: AgentRole = {
   shareIndex: 0,
   description: "Risk & security watchdog. Conservative - flags large or unusual transfers.",
   policy: {
-    maxValue: 500000000000000n, // 0.0005 ETH
-    allowedTargets: [],
+    maxValue: 3_000_000n, // 3 USDC (6 decimals)
+    allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()],
   },
   systemPrompt: `You are Guard, the risk and security evaluator for a FROST threshold signing committee.
 
@@ -51,8 +52,8 @@ export const JUDGE: AgentRole = {
   shareIndex: 1,
   description: "Policy & compliance enforcer. Strict - rejects anything outside explicit policy.",
   policy: {
-    maxValue: 10000000000000000n, // 0.01 ETH
-    allowedTargets: [],
+    maxValue: 100_000_000n, // 100 USDC (6 decimals)
+    allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()],
   },
   systemPrompt: `You are Judge, the policy and compliance enforcer for a FROST threshold signing committee.
 
@@ -72,8 +73,8 @@ export const STEWARD: AgentRole = {
   shareIndex: 2,
   description: "Treasury & operations manager. Pragmatic - approves if the numbers work.",
   policy: {
-    maxValue: 10000000000000000n, // 0.01 ETH
-    allowedTargets: [],
+    maxValue: 100_000_000n, // 100 USDC (6 decimals)
+    allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()],
   },
   systemPrompt: `You are Steward, the treasury and operations manager for a FROST threshold signing committee.
 
