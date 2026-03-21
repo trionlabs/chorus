@@ -25,6 +25,16 @@ const KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 const THRESHOLD = 2;
 const SIGNERS = 3;
 const NAMES = ["Guard", "Judge", "Steward"];
+const INTERACTIVE = process.argv.includes("--interactive") || process.argv.includes("-i");
+
+function pause(label: string): Promise<void> {
+  if (!INTERACTIVE) return Promise.resolve();
+  return new Promise((resolve) => {
+    process.stdout.write(`\n>>> ${label} - press enter to continue...`);
+    process.stdin.once("data", () => resolve());
+    process.stdin.resume();
+  });
+}
 
 const POLICIES: Policy[] = [
   { maxValue: 500000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
@@ -127,6 +137,9 @@ async function main() {
   writeDkgKeys(keysDir, dkgResults, pubKeys[0]!);
   const pk = getPublicKey(keysDir);
   console.log(`\ngroup pubkey: ${pk.address}`);
+  console.log("all 3 agents derived their key share. no agent ever saw the full private key.");
+
+  await pause("DKG complete. next: register committee on-chain");
 
   // ====== PHASE 2: REGISTER COMMITTEE ON-CHAIN ======
   console.log("\n--- phase 2: register committee on-chain ---\n");
@@ -137,10 +150,13 @@ async function main() {
     chain, account,
   });
   const regReceipt = await publicClient.waitForTransactionReceipt({ hash: regTx });
-  console.log(`registered: ${regTx.slice(0, 18)}... (${regReceipt.status})`);
+  console.log(`registered: ${regTx}`);
+  console.log(`status: ${regReceipt.status}`);
 
   const committeeId = keccak256(encodeAbiParameters([{type:"uint256"},{type:"uint256"}], [pk.px, pk.py]));
   await new Promise(r => setTimeout(r, 3000));
+
+  await pause("committee registered on-chain. next: signing ceremony over XMTP");
 
   // ====== PHASE 3: SIGNING CEREMONY OVER XMTP ======
   console.log("\n--- phase 3: signing ceremony over XMTP ---\n");
@@ -221,7 +237,13 @@ async function main() {
   });
 
   console.log("waiting for signing ceremony + on-chain execution...\n");
-  await new Promise(r => setTimeout(r, 30000));
+
+  // wait for ceremony to complete (check periodically)
+  for (let t = 0; t < 30; t++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const completed = contexts.some(c => c?.state === "COMPLETE");
+    if (completed) { await new Promise(r => setTimeout(r, 2000)); break; }
+  }
 
   // results
   for (let i = 0; i < SIGNERS; i++) {
@@ -231,8 +253,14 @@ async function main() {
     }
   }
 
+  await pause("signing complete. check the tx on BaseScan");
+
   console.log("\n=== LIFECYCLE COMPLETE ===");
-  console.log("DKG over XMTP -> committee registered -> signing over XMTP -> on-chain execution");
+  console.log("1. DKG: 3 agents generated keys over XMTP (round2 via DM, never broadcast)");
+  console.log("2. committee registered on-chain with DKG-derived group public key");
+  console.log("3. signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP");
+  console.log("4. 96-byte FROST signature verified on-chain (~5,300 gas, constant)");
+  console.log("5. no agent ever held the full private key");
 
   for (const a of agents) await a.stop();
 }
