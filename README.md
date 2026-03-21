@@ -101,7 +101,7 @@ stateDiagram-v2
 | On-chain appearance | one signer | visibly multi-party |
 | Agent rotation | share refresh, same address | on-chain owner change |
 
-FROST implements [RFC 9591](https://datatracker.ietf.org/doc/html/rfc9591) (Flexible Round-Optimized Schnorr Threshold signatures). See the [FROST Book](https://frost.zfnd.org) for the full protocol specification, DKG ceremony details, and security properties.
+FROST implements [RFC 9591](https://datatracker.ietf.org/doc/html/rfc9591) (Flexible Round-Optimized Schnorr Threshold signatures). See the [FROST Book](https://frost.zfnd.org/frost.html) for how the protocol works, and the [DKG tutorial](https://frost.zfnd.org/tutorial/dkg.html) for distributed key generation.
 
 ## Gas benchmarks
 
