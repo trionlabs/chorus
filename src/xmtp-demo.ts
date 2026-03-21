@@ -1,9 +1,16 @@
 import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { generatePrivateKey } from "viem/accounts";
-import { encodeAbiParameters, keccak256 } from "viem";
-import { generateKeys, getPublicKey } from "./frost/cli.js";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import {
+  createPublicClient,
+  encodeAbiParameters,
+  encodeFunctionData,
+  http,
+  keccak256,
+} from "viem";
+import { baseSepolia } from "viem/chains";
+import { getPublicKey } from "./frost/cli.js";
 import { createSubmitter } from "./chain/submit.js";
 import { createSigningCeremony } from "./ceremony/signing.js";
 import {
@@ -17,34 +24,47 @@ import {
 import { evaluate, type Policy } from "./agent/evaluator.js";
 import { ChorusAgent } from "./xmtp/agent.js";
 import type { ProtocolMessage } from "./xmtp/messages.js";
-import type {
-  Hex,
-  Transaction,
-  SigningContext,
-} from "./ceremony/types.js";
+import type { Hex, Transaction, SigningContext } from "./ceremony/types.js";
 import type { SubmitTxCallback } from "./agent/handler.js";
+import { SWAP_ROUTER, USDC, WETH } from "./uniswap/client.js";
+import { agentConsensusAbi } from "./chain/abi.js";
+import {
+  toMetaMaskSmartAccount,
+  getDeleGatorEnvironment,
+  createDelegation,
+  Implementation,
+  createExecution,
+} from "@metamask/delegation-toolkit";
+import {
+  encodePermissionContexts,
+  encodeExecutionCalldatas,
+} from "@metamask/delegation-toolkit/utils";
 
 const THRESHOLD = 2;
 const SIGNERS = 3;
 
 const CONTRACT_ADDRESS = (process.env.CONTRACT_ADDRESS ?? "") as Hex;
 const DEPLOYER_KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
+const RPC = process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org";
 
 const AGENT_NAMES = ["Guard", "Judge", "Steward"];
 
+// guard is conservative on amounts, judge and steward accept within bounds
 const POLICIES: Policy[] = [
-  // guard: conservative, max 0.0005 ETH
-  { maxValue: 500000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
-  // judge: strict but reasonable, max 0.01 ETH
-  { maxValue: 10000000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
-  // steward: pragmatic, max 0.01 ETH
-  { maxValue: 10000000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
+  { maxValue: 3_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
+  { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
+  { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
 ];
 
 async function main() {
   console.log("--- chorus xmtp demo ---\n");
 
-  // use existing frost keys (must be pre-generated and registered on-chain)
+  if (!CONTRACT_ADDRESS || !DEPLOYER_KEY) {
+    console.error("set CONTRACT_ADDRESS and DEPLOYER_PRIVATE_KEY");
+    process.exit(1);
+  }
+
+  // frost keys
   const keysDir = process.env.FROST_KEYS_DIR ?? ".frost";
   const pk = getPublicKey(keysDir);
   console.log(`frost group pubkey: ${pk.address}`);
@@ -56,99 +76,137 @@ async function main() {
     )
   );
 
-  // generate xmtp wallet keys
-  const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
+  // --- set up real delegation ---
+  const aliceAccount = privateKeyToAccount(DEPLOYER_KEY);
+  const publicClient = createPublicClient({ chain: baseSepolia, transport: http(RPC) });
+  const env = getDeleGatorEnvironment(baseSepolia.id);
 
-  // create agents with fresh db paths each run
-  const runDir = mkdtempSync(join(tmpdir(), "chorus-run-"));
-  const agents: ChorusAgent[] = walletKeys.map((key, i) => {
-    const dbPath = join(runDir, `${AGENT_NAMES[i]!.toLowerCase()}.db3`);
-    return new ChorusAgent(key, AGENT_NAMES[i]!, dbPath);
+  const smartAccount = await toMetaMaskSmartAccount({
+    implementation: Implementation.Hybrid,
+    deployParams: [aliceAccount.address, [], [], []],
+    deploySalt: ("0x" + "00".repeat(31) + "01") as Hex,
+    signer: { account: aliceAccount },
+    client: publicClient as any,
+    environment: env,
+  });
+  console.log(`alice smart account: ${smartAccount.address}`);
+
+  // create delegation: alice -> AgentConsensus (uniswap + usdc scope)
+  const delegation = createDelegation({
+    environment: env,
+    to: CONTRACT_ADDRESS as `0x${string}`,
+    from: smartAccount.address,
+    scope: {
+      type: "functionCall" as const,
+      targets: [SWAP_ROUTER, USDC],
+      selectors: ["0x04e45aaf", "0x095ea7b3"], // exactInputSingle, approve
+    },
+  });
+  const delegationSig = await smartAccount.signDelegation({ delegation });
+  const signedDelegation = { ...delegation, signature: delegationSig };
+  const permContexts = encodePermissionContexts([[signedDelegation as any]]);
+  console.log("delegation signed with caveats:", delegation.caveats.length);
+
+  // build the swap execution: 5 USDC -> WETH
+  const swapCalldata = encodeFunctionData({
+    abi: [{
+      name: "exactInputSingle", type: "function", stateMutability: "payable",
+      inputs: [{ name: "params", type: "tuple", components: [
+        { name: "tokenIn", type: "address" }, { name: "tokenOut", type: "address" },
+        { name: "fee", type: "uint24" }, { name: "recipient", type: "address" },
+        { name: "amountIn", type: "uint256" }, { name: "amountOutMinimum", type: "uint256" },
+        { name: "sqrtPriceLimitX96", type: "uint160" },
+      ]}],
+      outputs: [{ name: "", type: "uint256" }],
+    }],
+    functionName: "exactInputSingle",
+    args: [{
+      tokenIn: USDC, tokenOut: WETH, fee: 3000,
+      recipient: smartAccount.address,
+      amountIn: 5_000_000n, // 5 USDC
+      amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
+    }],
   });
 
-  // per-agent ceremony state
-  const contexts: (SigningContext | null)[] = Array(SIGNERS).fill(null);
-  const runtimes: CeremonyRuntime[] = Array.from({ length: SIGNERS }, () => createRuntime());
-  // wire on-chain submission if contract is configured
-  let onSubmitTx: SubmitTxCallback | undefined;
-  if (CONTRACT_ADDRESS && DEPLOYER_KEY) {
-    const submitter = createSubmitter({
-      contractAddress: CONTRACT_ADDRESS as `0x${string}`,
-      committeeId: committeeId as `0x${string}`,
-      delegationManager: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-      walletKey: DEPLOYER_KEY,
-      rpcUrl: process.env.BASE_SEPOLIA_RPC,
-    });
-    onSubmitTx = async (sig) => {
-      const result = await submitter.submitDelegated(
-        ["0xdead"] as `0x${string}`[],
-        [("0x" + "00".repeat(32)) as `0x${string}`],
-        ["0xcafe"] as `0x${string}`[],
-        sig,
-      );
-      return { txHash: result.txHash, success: result.success };
-    };
-    console.log("on-chain submission enabled");
-  }
+  const swapExec = createExecution({ target: SWAP_ROUTER, value: 0n, callData: swapCalldata });
+  const execCalldatas = encodeExecutionCalldatas([[swapExec]]);
+  const mode = ("0x" + "00".repeat(32)) as Hex;
 
-  const configs: AgentConfig[] = AGENT_NAMES.map((name, i) => ({
-    name,
-    shareIndex: i,
-    keysDir,
-    threshold: THRESHOLD,
-    totalSigners: SIGNERS,
-    onSubmitTx, // coordinator (lowest accepted index) will submit
-  }));
+  // read nonce and compute action hash with REAL delegation data
+  const nonce = await publicClient.readContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: agentConsensusAbi,
+    functionName: "getNonce",
+    args: [committeeId],
+  }) as bigint;
+  console.log(`on-chain nonce: ${nonce}`);
 
-  // proposal
-  const target = "0x000000000000000000000000000000000000dEaD" as Hex;
-  const tx: Transaction = {
-    to: target,
-    value: 1000000000000000n, // 0.001 ETH
-    data: "0x" as Hex,
-  };
-
-  // the delegation call data that will be submitted on-chain
-  // (must match what onSubmitTx sends)
-  const mockDM = "0x0000000000000000000000000000000000000000" as Hex;
-  const permContexts = ["0xdead"] as Hex[];
-  const modes = [("0x" + "00".repeat(32)) as Hex];
-  const execDatas = ["0xcafe"] as Hex[];
-
-  // compute execution hash matching what the contract will compute
   const executionHash = keccak256(
     encodeAbiParameters(
       [{ type: "address" }, { type: "bytes[]" }, { type: "bytes32[]" }, { type: "bytes[]" }],
-      [mockDM, permContexts, modes, execDatas]
+      [env.DelegationManager, permContexts, [mode], execCalldatas]
     )
   );
-
-  // read current nonce from contract (or use 0 if no contract)
-  let nonce = 0n;
-  if (CONTRACT_ADDRESS) {
-    const { createPublicClient, http } = await import("viem");
-    const { baseSepolia } = await import("viem/chains");
-    const { agentConsensusAbi } = await import("./chain/abi.js");
-    const pub = createPublicClient({ chain: baseSepolia, transport: http(process.env.BASE_SEPOLIA_RPC) });
-    nonce = await pub.readContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      abi: agentConsensusAbi,
-      functionName: "getNonce",
-      args: [committeeId as `0x${string}`],
-    }) as bigint;
-    console.log(`on-chain nonce: ${nonce}`);
-  }
-
   const actionHash = keccak256(
     encodeAbiParameters(
       [{ type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }],
       [committeeId, executionHash, nonce]
     )
   ) as Hex;
+  console.log(`action hash: ${actionHash.slice(0, 18)}...`);
+
+  // wire on-chain submission with REAL delegation data
+  let onSubmitTx: SubmitTxCallback | undefined;
+  const submitter = createSubmitter({
+    contractAddress: CONTRACT_ADDRESS as `0x${string}`,
+    committeeId: committeeId as `0x${string}`,
+    delegationManager: env.DelegationManager,
+    walletKey: DEPLOYER_KEY,
+    rpcUrl: RPC,
+  });
+  onSubmitTx = async (sig) => {
+    const result = await submitter.submitDelegated(
+      permContexts,
+      [mode],
+      execCalldatas,
+      sig,
+    );
+    return { txHash: result.txHash, success: result.success };
+  };
+
+  // generate xmtp wallet keys
+  const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
+
+  // create agents with fresh db paths
+  const runDir = mkdtempSync(join(tmpdir(), "chorus-run-"));
+  const agents: ChorusAgent[] = walletKeys.map((key, i) => {
+    const dbPath = join(runDir, `${AGENT_NAMES[i]!.toLowerCase()}.db3`);
+    return new ChorusAgent(key, AGENT_NAMES[i]!, dbPath);
+  });
+
+  // ceremony state per agent
+  const contexts: (SigningContext | null)[] = Array(SIGNERS).fill(null);
+  const runtimes: CeremonyRuntime[] = Array.from({ length: SIGNERS }, () => createRuntime());
+  const configs: AgentConfig[] = AGENT_NAMES.map((name, i) => ({
+    name,
+    shareIndex: i,
+    keysDir,
+    threshold: THRESHOLD,
+    totalSigners: SIGNERS,
+    onSubmitTx,
+  }));
+
+  // the proposal transaction (what agents evaluate)
+  const target = SWAP_ROUTER;
+  const tx: Transaction = {
+    to: target as Hex,
+    value: 5_000_000n, // agents evaluate the USDC amount (5 USDC)
+    data: swapCalldata as Hex,
+  };
 
   const proposalId = `proposal-${Date.now()}`;
 
-  // register message handlers for each agent
+  // register handlers
   for (let i = 0; i < SIGNERS; i++) {
     const idx = i;
     const agent = agents[idx]!;
@@ -163,29 +221,22 @@ async function main() {
       await executeActions(actions, contexts[idx]!, runtimes[idx]!, configs[idx]!, reply);
     };
 
-    // register handlers for all signing ceremony message types
     for (const type of [
-      "frost/accept",
-      "frost/reject",
-      "frost/round1",
-      "frost/signing-package",
-      "frost/round2",
-      "frost/signature",
-      "frost/executed",
+      "frost/accept", "frost/reject", "frost/round1",
+      "frost/signing-package", "frost/round2",
+      "frost/signature", "frost/executed",
     ]) {
       agent.on(type, async (msg, reply) => {
         await processMessage(msg, reply);
       });
     }
 
-    // handle proposals: evaluate and respond
     agent.on("frost/propose", async (msg, reply) => {
       if (msg.type !== "frost/propose") return;
 
       const result = evaluate(msg.transaction, POLICIES[idx]!);
       console.log(`[${AGENT_NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
 
-      // create ceremony context
       contexts[idx] = createSigningCeremony(
         {
           proposalId: msg.proposalId,
@@ -218,16 +269,13 @@ async function main() {
     });
   }
 
-  // start all agents
+  // start agents
   console.log("\nstarting agents...");
   for (const agent of agents) {
     await agent.start();
   }
-
-  // wait for all agents to be ready
   await new Promise((r) => setTimeout(r, 2000));
 
-  // create group
   const peerAddresses = agents.map((a) => a.address as Hex);
   console.log(`\nagent addresses:`);
   peerAddresses.forEach((addr, i) => console.log(`  ${AGENT_NAMES[i]}: ${addr}`));
@@ -236,25 +284,25 @@ async function main() {
     peerAddresses.slice(1) as Hex[],
     "chorus-committee"
   );
-  console.log(`\ngroup created: ${groupId.slice(0, 16)}...`);
+  console.log(`group created: ${groupId.slice(0, 16)}...`);
   await new Promise((r) => setTimeout(r, 2000));
 
   // broadcast proposal
-  console.log(`\nbroadcasting proposal: transfer ${tx.value} wei to ${tx.to}`);
+  console.log(`\nproposal: swap 5 USDC for WETH on Uniswap`);
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose",
     proposalId,
     proposer: 0,
     transaction: tx,
-    rationale: "test transfer",
+    rationale: "swap 5 USDC for WETH via Uniswap",
     timestamp: Date.now(),
   });
 
-  // wait for ceremony to complete
-  console.log("\nwaiting for ceremony...");
-  await new Promise((r) => setTimeout(r, 30000));
+  // wait for ceremony + on-chain execution
+  console.log("\nwaiting for ceremony + on-chain execution...");
+  await new Promise((r) => setTimeout(r, 45000));
 
-  // check results
+  // results
   for (let i = 0; i < SIGNERS; i++) {
     const ctx = contexts[i];
     if (ctx) {
@@ -265,11 +313,19 @@ async function main() {
     }
   }
 
-  // cleanup
+  // check USDC balance
+  const finalUsdc = await publicClient.readContract({
+    address: USDC,
+    abi: [{ name: "balanceOf", type: "function", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" }],
+    functionName: "balanceOf",
+    args: [smartAccount.address],
+  }) as bigint;
+  console.log(`\nalice USDC balance: ${Number(finalUsdc) / 1e6} USDC`);
+
   for (const agent of agents) {
     await agent.stop();
   }
-  console.log("\ndone.");
+  console.log("done.");
 }
 
 main().catch(console.error);
