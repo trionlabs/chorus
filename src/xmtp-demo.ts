@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { generatePrivateKey } from "viem/accounts";
 import { encodeAbiParameters, keccak256 } from "viem";
 import { generateKeys, getPublicKey } from "./frost/cli.js";
+import { createSubmitter } from "./chain/submit.js";
 import { createSigningCeremony } from "./ceremony/signing.js";
 import {
   createRuntime,
@@ -21,9 +22,13 @@ import type {
   Transaction,
   SigningContext,
 } from "./ceremony/types.js";
+import type { SubmitTxCallback } from "./agent/handler.js";
 
 const THRESHOLD = 2;
 const SIGNERS = 3;
+
+const CONTRACT_ADDRESS = (process.env.CONTRACT_ADDRESS ?? "") as Hex;
+const DEPLOYER_KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 
 const AGENT_NAMES = ["Guard", "Judge", "Steward"];
 
@@ -39,9 +44,8 @@ const POLICIES: Policy[] = [
 async function main() {
   console.log("--- chorus xmtp demo ---\n");
 
-  // generate frost keys
-  const keysDir = mkdtempSync(join(tmpdir(), "chorus-keys-"));
-  generateKeys(keysDir, THRESHOLD, SIGNERS);
+  // use existing frost keys (must be pre-generated and registered on-chain)
+  const keysDir = process.env.FROST_KEYS_DIR ?? ".frost";
   const pk = getPublicKey(keysDir);
   console.log(`frost group pubkey: ${pk.address}`);
 
@@ -65,12 +69,35 @@ async function main() {
   // per-agent ceremony state
   const contexts: (SigningContext | null)[] = Array(SIGNERS).fill(null);
   const runtimes: CeremonyRuntime[] = Array.from({ length: SIGNERS }, () => createRuntime());
+  // wire on-chain submission if contract is configured
+  let onSubmitTx: SubmitTxCallback | undefined;
+  if (CONTRACT_ADDRESS && DEPLOYER_KEY) {
+    const submitter = createSubmitter({
+      contractAddress: CONTRACT_ADDRESS as `0x${string}`,
+      committeeId: committeeId as `0x${string}`,
+      delegationManager: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      walletKey: DEPLOYER_KEY,
+      rpcUrl: process.env.BASE_SEPOLIA_RPC,
+    });
+    onSubmitTx = async (sig) => {
+      const result = await submitter.submitDelegated(
+        ["0xdead"] as `0x${string}`[],
+        [("0x" + "00".repeat(32)) as `0x${string}`],
+        ["0xcafe"] as `0x${string}`[],
+        sig,
+      );
+      return { txHash: result.txHash, success: result.success };
+    };
+    console.log("on-chain submission enabled");
+  }
+
   const configs: AgentConfig[] = AGENT_NAMES.map((name, i) => ({
     name,
     shareIndex: i,
     keysDir,
     threshold: THRESHOLD,
     totalSigners: SIGNERS,
+    onSubmitTx, // coordinator (lowest accepted index) will submit
   }));
 
   // proposal
@@ -81,16 +108,41 @@ async function main() {
     data: "0x" as Hex,
   };
 
+  // the delegation call data that will be submitted on-chain
+  // (must match what onSubmitTx sends)
+  const mockDM = "0x0000000000000000000000000000000000000000" as Hex;
+  const permContexts = ["0xdead"] as Hex[];
+  const modes = [("0x" + "00".repeat(32)) as Hex];
+  const execDatas = ["0xcafe"] as Hex[];
+
+  // compute execution hash matching what the contract will compute
   const executionHash = keccak256(
     encodeAbiParameters(
-      [{ type: "address" }, { type: "uint256" }, { type: "bytes" }],
-      [target, tx.value, tx.data]
+      [{ type: "address" }, { type: "bytes[]" }, { type: "bytes32[]" }, { type: "bytes[]" }],
+      [mockDM, permContexts, modes, execDatas]
     )
   );
+
+  // read current nonce from contract (or use 0 if no contract)
+  let nonce = 0n;
+  if (CONTRACT_ADDRESS) {
+    const { createPublicClient, http } = await import("viem");
+    const { baseSepolia } = await import("viem/chains");
+    const { agentConsensusAbi } = await import("./chain/abi.js");
+    const pub = createPublicClient({ chain: baseSepolia, transport: http(process.env.BASE_SEPOLIA_RPC) });
+    nonce = await pub.readContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      abi: agentConsensusAbi,
+      functionName: "getNonce",
+      args: [committeeId as `0x${string}`],
+    }) as bigint;
+    console.log(`on-chain nonce: ${nonce}`);
+  }
+
   const actionHash = keccak256(
     encodeAbiParameters(
       [{ type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }],
-      [committeeId, executionHash, 0n]
+      [committeeId, executionHash, nonce]
     )
   ) as Hex;
 

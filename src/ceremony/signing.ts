@@ -190,7 +190,8 @@ export function handleSignatureResult(
   ctx.state = SigningState.EXECUTING;
   ctx.result = { rx, ry, z };
 
-  if (ctx.proposal.proposer === ctx.mySignerIndex) {
+  // coordinator submits (lowest accepted index)
+  if (ctx.coordinatorIndex === ctx.mySignerIndex) {
     return [{ type: ActionType.SUBMIT_TX, signature: { rx, ry, z } }];
   }
   return [];
