@@ -87,8 +87,8 @@ stateDiagram-v2
 
 | | FROST | Multisig |
 |---|---|---|
-| Proof size | 96 bytes (constant) | 65 x t bytes |
-| Gas cost | ~5,600 (constant) | ~3,000 x t |
+| Proof size | 96 bytes (constant) | 65 * t bytes |
+| Gas cost | ~5,600 (constant) | ~3,000 * t |
 | Signer privacy | can't tell who signed | each signer revealed |
 | On-chain appearance | one signer | visibly multi-party |
 | Agent rotation | share refresh, same address | on-chain owner change |
