@@ -14,3 +14,5 @@ delegation.json
 src/**/*.js
 scripts/**/*.js
 standard-json-input*.json
+demo-subtitles.srt
+demo-description.md
