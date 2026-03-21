@@ -107,26 +107,27 @@ FROST implements [RFC 9591](https://datatracker.ietf.org/doc/html/rfc9591) (Flex
 
 ## Gas benchmarks
 
-Measured on Base Sepolia. FROST verification cost is constant - the same whether the committee has 3 agents or 500.
+Measured via Foundry gas benchmarks (`forge test --match-path test/GasBenchmark.t.sol -vv`). FROST verification is constant regardless of committee size.
 
 | Operation | Gas | Notes |
 |-----------|-----|-------|
-| FROST.verify() | ~5,600 | constant for any t-of-n |
+| FROST.verify() | 5,327 | constant for any t-of-n ([test](contracts/test/GasBenchmark.t.sol)) |
+| executeDelegated | 36,271 | verify + delegation redemption |
 | Committee registration | 137,887 | one-time setup ([tx](https://sepolia.basescan.org/tx/0xd258a3dc2e6104cf280ace827423be4d4cc829b3759afc44476762b0a4c8a7f6)) |
-| executeDelegated (simple) | 68,883 | FROST verify + mock delegation ([tx](https://sepolia.basescan.org/tx/0x61192530a76162f8546af7cc24e365720ec58a88b7f0308fc2d11b1dbc94ab3b)) |
-| executeDelegated (Uniswap swap) | 272,614 | FROST verify + real delegation + Uniswap ([tx](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)) |
+| executeDelegated + Uniswap | 272,614 | full pipeline on-chain ([tx](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)) |
 
-### FROST vs Gnosis Safe multisig
+### FROST vs multisig (ecrecover per signer)
 
-| Committee size | FROST verification | Safe checkNSignatures | FROST savings |
-|---------------|-------------------|----------------------|---------------|
-| 2-of-3 | ~5,600 | ~6,000 | similar |
-| 3-of-5 | ~5,600 | ~9,000 | 38% cheaper |
-| 5-of-10 | ~5,600 | ~15,000 | 63% cheaper |
-| 10-of-20 | ~5,600 | ~30,000 | 81% cheaper |
-| 50-of-100 | ~5,600 | ~150,000 | 96% cheaper |
+All numbers measured in Foundry. ecrecover is what Safe's `checkNSignatures` calls per signer.
 
-Safe's `checkNSignatures` costs ~3,000 gas per signer (ecrecover per signature). FROST costs ~5,600 regardless of committee size because the verifier sees one 96-byte Schnorr signature, not t individual ECDSA signatures. The gap widens as the committee grows.
+| Committee size | FROST | ecrecover (multisig) | FROST savings |
+|---------------|-------|---------------------|---------------|
+| 1 signer | 5,327 | 3,251 | - |
+| 2-of-3 | 5,327 | 10,391 | 49% cheaper |
+| 3-of-5 | 5,327 | 11,778 | 55% cheaper |
+| 5-of-10 | 5,327 | 19,580 | 73% cheaper |
+| 10-of-20 | 5,327 | 39,091 | 86% cheaper |
+| 50-of-100 | 5,327 | 195,207 | 97% cheaper |
 
 At 50-of-100, FROST costs the same as a single token transfer. A Safe multisig costs more than a Uniswap swap.
 
