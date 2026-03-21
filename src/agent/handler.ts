@@ -25,6 +25,12 @@ import {
   type CeremonyDir,
 } from "../frost/executor.js";
 import type { ProtocolMessage } from "../xmtp/messages.js";
+import type { SignatureResult } from "../ceremony/types.js";
+
+export type SubmitTxCallback = (
+  sig: SignatureResult,
+  proposalId: string,
+) => Promise<{ txHash: string; success: boolean }>;
 
 export interface AgentConfig {
   name: string;
@@ -32,6 +38,7 @@ export interface AgentConfig {
   keysDir: string;
   threshold: number;
   totalSigners: number;
+  onSubmitTx?: SubmitTxCallback;
 }
 
 export interface CeremonyRuntime {
@@ -197,9 +204,30 @@ export async function executeActions(
       }
 
       case ActionType.SUBMIT_TX: {
-        console.log(
-          `[${config.name}] submit tx with sig rx=${action.signature.rx}`
-        );
+        const sig = action.signature;
+        console.log(`[${config.name}] submitting tx on-chain...`);
+        if (config.onSubmitTx) {
+          try {
+            const result = await config.onSubmitTx(sig, ctx.proposalId);
+            console.log(`[${config.name}] tx: ${result.txHash} (${result.success ? "ok" : "reverted"})`);
+            await reply({
+              type: "frost/executed",
+              proposalId: ctx.proposalId,
+              txHash: result.txHash as `0x${string}`,
+              success: result.success,
+            });
+          } catch (err) {
+            console.error(`[${config.name}] tx failed:`, err instanceof Error ? err.message : err);
+            await reply({
+              type: "frost/executed",
+              proposalId: ctx.proposalId,
+              txHash: "0x0" as `0x${string}`,
+              success: false,
+            });
+          }
+        } else {
+          console.log(`[${config.name}] no submitter configured, sig rx=${sig.rx}`);
+        }
         break;
       }
     }

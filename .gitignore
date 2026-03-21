@@ -10,3 +10,5 @@ contracts/cache/
 contracts/broadcast/
 .frost/
 delegation.json
+src/**/*.js
+scripts/**/*.js

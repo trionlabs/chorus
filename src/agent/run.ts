@@ -5,6 +5,7 @@ import {
   extractPeerData,
   routeMessage,
   executeActions,
+  type SubmitTxCallback,
 } from "./handler.js";
 import { evaluate } from "./evaluator.js";
 import { AGENT_ROLES, type AgentRole } from "./config.js";
@@ -21,10 +22,11 @@ interface RunAgentOptions {
   dbPath?: string;
   committeeId: Hex;
   allowedTargets?: string[];
+  onSubmitTx?: SubmitTxCallback;
 }
 
 export async function runAgent(options: RunAgentOptions): Promise<ChorusAgent> {
-  const { role, walletKey, keysDir, threshold, totalSigners, dbPath, committeeId, allowedTargets } = options;
+  const { role, walletKey, keysDir, threshold, totalSigners, dbPath, committeeId, allowedTargets, onSubmitTx } = options;
 
   const policy = {
     ...role.policy,
@@ -41,6 +43,7 @@ export async function runAgent(options: RunAgentOptions): Promise<ChorusAgent> {
     keysDir,
     threshold,
     totalSigners,
+    onSubmitTx,
   };
 
   const processMessage = async (
@@ -127,6 +130,8 @@ async function main() {
   const keysDir = process.env.FROST_KEYS_DIR ?? ".frost";
   const committeeId = process.env.COMMITTEE_ID as Hex | undefined;
   const dbPath = process.env.AGENT_DB_PATH;
+  const contractAddress = process.env.CONTRACT_ADDRESS as Hex | undefined;
+  const delegationManager = process.env.DELEGATION_MANAGER as Hex | undefined;
 
   if (!roleName || !walletKey || !committeeId) {
     console.error("required env: AGENT_ROLE, AGENT_WALLET_KEY, COMMITTEE_ID");
@@ -142,6 +147,30 @@ async function main() {
 
   const allowedTargets = process.env.ALLOWED_TARGETS?.split(",") ?? [];
 
+  // wire on-chain submission if contract is configured
+  let onSubmitTx: SubmitTxCallback | undefined;
+  if (contractAddress && delegationManager) {
+    const { createSubmitter } = await import("../chain/submit.js");
+    const submitter = createSubmitter({
+      contractAddress: contractAddress as `0x${string}`,
+      committeeId: committeeId as `0x${string}`,
+      delegationManager: delegationManager as `0x${string}`,
+      walletKey,
+      rpcUrl: process.env.BASE_SEPOLIA_RPC,
+    });
+    onSubmitTx = async (sig) => {
+      // for now use mock delegation contexts (will be replaced with real delegation)
+      const result = await submitter.submitDelegated(
+        ["0xdead"] as `0x${string}`[],
+        [("0x" + "00".repeat(32)) as `0x${string}`],
+        ["0xcafe"] as `0x${string}`[],
+        sig,
+      );
+      return { txHash: result.txHash, success: result.success };
+    };
+    console.log(`[${role.name}] on-chain submission enabled: ${contractAddress}`);
+  }
+
   const agent = await runAgent({
     role,
     walletKey,
@@ -151,6 +180,7 @@ async function main() {
     dbPath,
     committeeId,
     allowedTargets,
+    onSubmitTx,
   });
 
   console.log(`[${role.name}] running at ${agent.address}`);
