@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { ChorusAgent } from "../xmtp/agent.js";
 import { createSigningCeremony } from "../ceremony/signing.js";
 import {

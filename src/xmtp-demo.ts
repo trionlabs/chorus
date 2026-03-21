@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";

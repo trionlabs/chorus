@@ -2,6 +2,7 @@
  * Full lifecycle: DKG over XMTP -> register committee -> XMTP signing -> on-chain execution
  * The complete flow from key generation to delegated action, all over XMTP.
  */
+import "dotenv/config";
 import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
