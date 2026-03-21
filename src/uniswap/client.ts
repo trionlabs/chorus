@@ -6,6 +6,10 @@ export const SWAP_ROUTER = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4" as Addre
 export const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address;
 // WETH on Base Sepolia (wrapped native)
 export const WETH = "0x4200000000000000000000000000000000000006" as Address;
+// SwapRouter02 exactInputSingle selector (7-field tuple, no deadline)
+export const EXACT_INPUT_SINGLE_SELECTOR = "0x04e45aaf" as Hex;
+// ERC-20 approve selector
+export const APPROVE_SELECTOR = "0x095ea7b3" as Hex;
 
 const swapRouterAbi = [
   {
