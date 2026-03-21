@@ -6,31 +6,82 @@ A committee of AI agents independently evaluates proposals, reaches threshold ag
 
 ## How it works
 
-```
-Alice (human)
-  |
-  | ERC-7710 delegation: "swap up to 100 USDC on Uniswap"
-  v
-AgentConsensus.sol (Base Sepolia)
-  |
-  | FROST.verify() - one signature, constant gas
-  |
-  +--- Guard (risk) ---+
-  |                     |
-  +--- Judge (policy) --+--- XMTP (E2E encrypted) ---> FROST ceremony
-  |                     |
-  +--- Steward (ops) ---+
+```mermaid
+sequenceDiagram
+    participant Alice as Alice (human)
+    participant AC as AgentConsensus.sol
+    participant Guard
+    participant Judge
+    participant Steward
+    participant Uniswap
+
+    Alice->>AC: ERC-7710 delegation (max 100 USDC, Uniswap only)
+
+    Note over Guard,Steward: Proposal: "Swap 50 USDC for ETH"
+
+    Guard->>Guard: evaluate risk
+    Judge->>Judge: check policy
+    Steward->>Steward: check feasibility
+
+    Guard--xGuard: REJECT (exceeds risk threshold)
+    Judge->>Judge: ACCEPT
+    Steward->>Steward: ACCEPT
+
+    Note over Judge,Steward: 2-of-3 threshold met
+
+    Judge->>Steward: FROST round 1 (commitments via XMTP)
+    Steward->>Judge: FROST round 2 (signature shares via XMTP)
+    Note over Judge,Steward: aggregate into 96-byte Schnorr signature
+
+    Judge->>AC: executeDelegated(sig)
+    AC->>AC: FROST.verify() (~5,600 gas)
+    AC->>AC: redeem Alice's delegation
+    AC->>Uniswap: swap 50 USDC for ETH (from Alice's account)
 ```
 
-1. Alice delegates caveated authority to the agent committee
-2. A proposal arrives (e.g. "swap 50 USDC for ETH on Uniswap")
-3. Three agents evaluate independently - Guard checks risk, Judge checks policy, Steward checks feasibility
-4. If 2-of-3 approve, a FROST signing ceremony runs over XMTP
-5. The aggregated Schnorr signature is submitted to AgentConsensus.sol
-6. The contract verifies the FROST signature and redeems Alice's delegation
-7. The swap executes from Alice's account within her caveated bounds
+## Architecture
 
-The committee has no independent authority. It can only act within Alice's delegated permissions.
+```mermaid
+graph TB
+    Alice[Alice - human delegator]
+    AC[AgentConsensus.sol<br/>Base Sepolia]
+    DM[DelegationManager<br/>ERC-7710]
+    FROST[FROST.sol<br/>~5,600 gas verification]
+    XMTP[XMTP Group Chat<br/>E2E encrypted]
+
+    Alice -->|ERC-7710 delegation<br/>caveated permissions| AC
+    AC --> FROST
+    AC -->|redeemDelegations| DM
+    DM -->|caveat enforcement<br/>target + amount limits| Uniswap[Uniswap Router]
+
+    Guard[Guard<br/>risk & security] --> XMTP
+    Judge[Judge<br/>policy & compliance] --> XMTP
+    Steward[Steward<br/>treasury & ops] --> XMTP
+
+    XMTP -->|FROST ceremony<br/>commitments + shares| AC
+
+    subgraph "Agent Committee (2-of-3)"
+        Guard
+        Judge
+        Steward
+    end
+```
+
+## Signing ceremony
+
+```mermaid
+stateDiagram-v2
+    [*] --> EVALUATING: proposal received
+    EVALUATING --> ACCEPTED: threshold agents accept
+    EVALUATING --> ABORTED: too many rejections
+    ACCEPTED --> ROUND1_COMMITTED: commitments collected
+    ROUND1_COMMITTED --> ROUND2_SIGNED: signature shares collected
+    ROUND2_SIGNED --> EXECUTING: FROST signature aggregated
+    EXECUTING --> COMPLETE: on-chain execution confirmed
+    ACCEPTED --> ABORTED: timeout (30s)
+    ROUND1_COMMITTED --> ABORTED: timeout (30s)
+    ROUND2_SIGNED --> ABORTED: timeout (30s)
+```
 
 ## Why FROST (not multisig)
 
@@ -84,20 +135,24 @@ src/
 
 scripts/
   register-committee.ts     - on-chain committee registration
+  create-delegation.ts      - ERC-7710 delegation with Uniswap caveats
+  test-onchain.ts           - on-chain FROST verification test
 ```
 
-## Contract addresses
+## On-chain proof
 
 - AgentConsensus: [`0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4`](https://sepolia.basescan.org/address/0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4)
+- Committee registration: [`0xd258a3dc...`](https://sepolia.basescan.org/tx/0xd258a3dc2e6104cf280ace827423be4d4cc829b3759afc44476762b0a4c8a7f6)
+- FROST-signed execution: [`0x61192530...`](https://sepolia.basescan.org/tx/0x61192530a76162f8546af7cc24e365720ec58a88b7f0308fc2d11b1dbc94ab3b)
 - USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - Uniswap SwapRouter02: `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`
 
 ## Hackathon tracks
 
-- Synthesis Open Track - agents that cooperate via FROST consensus
-- Agents With Receipts (ERC-8004) - FROST signature as cryptographic receipt
-- Let the Agent Cook - fully autonomous committee decisions
-- Best Use of Delegations - human delegates to threshold committee via ERC-7710
-- Uniswap - agents execute swaps within delegated bounds
+- **Synthesis Open Track** - agents that cooperate via FROST consensus
+- **Agents With Receipts (ERC-8004)** - FROST signature as cryptographic receipt
+- **Let the Agent Cook** - fully autonomous committee decisions
+- **Best Use of Delegations** - human delegates to threshold committee via ERC-7710
+- **Uniswap** - agents execute swaps within delegated bounds
 
 Built for [The Synthesis](https://synthesis.md/hack/) hackathon.
