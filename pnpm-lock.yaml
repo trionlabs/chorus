@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@xmtp/agent-sdk':
+        specifier: ^2.3.0
+        version: 2.3.0(typescript@5.9.3)
       viem:
         specifier: ^2.47.4
         version: 2.47.6(typescript@5.9.3)
@@ -207,6 +210,32 @@ packages:
   '@types/node@22.19.15':
     resolution: {integrity: sha512-F0R/h2+dsy5wJAUe3tAU6oqa2qbWY5TpNfL/RGmo1y38hiyO1w3x2jPtt76wmuaJI4DQnOBu21cNXQ2STIUUWg==}
 
+  '@xmtp/agent-sdk@2.3.0':
+    resolution: {integrity: sha512-wMBuoZLDhX2mHKIKHCBaJxQfOhXooo3SAki4QCx+LrNFMBHOYgNkqQyynb7K44S92RgvrTcfIez6dbBzIMvvsQ==}
+    engines: {node: '>=22'}
+
+  '@xmtp/content-type-primitives@3.0.0':
+    resolution: {integrity: sha512-gxK6+k0ywOz39LFJjrUF3fOXWXR3aAmIkF7e0rFz7c27izDimZC5E2oja9iz/CYyzDS6lf9Pm31qRcGTMSYaHg==}
+
+  '@xmtp/content-type-primitives@3.0.1':
+    resolution: {integrity: sha512-qM8d3+9A2aKwYuHkkl84BnnECtKop21PMzu7l8NYsTX1qvEkM+sfIqCwiLw4CgYD87OMAzDVCxDNGj1E/g/pWg==}
+
+  '@xmtp/node-bindings@1.10.0':
+    resolution: {integrity: sha512-US/YvMP7RL1DkNeiZ75ZjEyvMwLIrEPn12dBj5h7lAesM2N5snwnstJ2NNk3LpW3kCNDdzwhe/G0ZSb0PhwNeg==}
+    engines: {node: '>=22'}
+
+  '@xmtp/node-bindings@1.8.0':
+    resolution: {integrity: sha512-dyppg1pQNsEdGH13RfsbkbXdnUdjufak6ea1YahjCROgmaJClDpMHcMcSfMzoJzASanU58MwEdCgYUF638NKgw==}
+    engines: {node: '>=22'}
+
+  '@xmtp/node-bindings@1.9.1':
+    resolution: {integrity: sha512-0cnAq7j8dPvxDZ5d7JpdbWTgSIKDiN421dxZj4sy1qw7QLOH4yTUKuuMY7CxoChoGa7/QPZGm+0sIIx/Gs2bAg==}
+    engines: {node: '>=22'}
+
+  '@xmtp/node-sdk@6.0.0':
+    resolution: {integrity: sha512-UMClg1+WkC3pfeHffJoZMYzhqsUa2wZpSJtIrpvBqUD+n1VYVQTfhTqGyaavVIPgITxjHBi/uMS/K18E4qDbPA==}
+    engines: {node: '>=22'}
+
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
     peerDependencies:
@@ -249,6 +278,10 @@ packages:
 
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
+
+  ts-retry-promise@0.8.1:
+    resolution: {integrity: sha512-+AHPUmAhr5bSRRK5CurE9kNH8gZlEHnCgusZ0zy2bjfatUBDX0h6vGQjiT0YrGwSDwRZmU+bapeX6mj55FOPvg==}
+    engines: {node: '>=6'}
 
   tsx@4.21.0:
     resolution: {integrity: sha512-5C1sg4USs1lfG0GFb2RLXsdpXqBSEhAaA/0kPL01wxzpMqLILNxIxIOKiILz+cdg/pLnOUxFYOR5yhHU666wbw==}
@@ -390,6 +423,37 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@xmtp/agent-sdk@2.3.0(typescript@5.9.3)':
+    dependencies:
+      '@xmtp/content-type-primitives': 3.0.1
+      '@xmtp/node-sdk': 6.0.0
+      ts-retry-promise: 0.8.1
+      viem: 2.47.6(typescript@5.9.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@xmtp/content-type-primitives@3.0.0':
+    dependencies:
+      '@xmtp/node-bindings': 1.8.0
+
+  '@xmtp/content-type-primitives@3.0.1':
+    dependencies:
+      '@xmtp/node-bindings': 1.9.1
+
+  '@xmtp/node-bindings@1.10.0': {}
+
+  '@xmtp/node-bindings@1.8.0': {}
+
+  '@xmtp/node-bindings@1.9.1': {}
+
+  '@xmtp/node-sdk@6.0.0':
+    dependencies:
+      '@xmtp/content-type-primitives': 3.0.0
+      '@xmtp/node-bindings': 1.10.0
+
   abitype@1.2.3(typescript@5.9.3):
     optionalDependencies:
       typescript: 5.9.3
@@ -452,6 +516,8 @@ snapshots:
       - zod
 
   resolve-pkg-maps@1.0.0: {}
+
+  ts-retry-promise@0.8.1: {}
 
   tsx@4.21.0:
     dependencies:
