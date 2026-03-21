@@ -43,29 +43,37 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    Alice[Alice - human delegator]
-    AC[AgentConsensus.sol<br/>Base Sepolia]
-    DM[DelegationManager<br/>ERC-7710]
-    FROST[FROST.sol<br/>~5,600 gas verification]
-    XMTP[XMTP Group Chat<br/>E2E encrypted]
-
-    Alice -->|ERC-7710 delegation<br/>caveated permissions| AC
-    AC --> FROST
-    AC -->|redeemDelegations| DM
-    DM -->|caveat enforcement<br/>target + amount limits| Uniswap[Uniswap Router]
-
-    Guard[Guard<br/>risk & security] --> XMTP
-    Judge[Judge<br/>policy & compliance] --> XMTP
-    Steward[Steward<br/>treasury & ops] --> XMTP
-
-    XMTP -->|FROST ceremony<br/>commitments + shares| AC
-
-    subgraph "Agent Committee (2-of-3)"
-        Guard
-        Judge
-        Steward
+    subgraph "Off-chain (XMTP E2E encrypted)"
+        Guard[Guard<br/>risk & security]
+        Judge[Judge<br/>policy & compliance]
+        Steward[Steward<br/>treasury & ops]
+        Guard <-->|FROST round 1+2| Judge
+        Judge <-->|FROST round 1+2| Steward
     end
+
+    subgraph "On-chain (Base Sepolia)"
+        AC[AgentConsensus.sol]
+        FROST[FROST.verify<br/>~5,600 gas, constant]
+        DM[DelegationManager<br/>ERC-7710]
+        Caveats[Caveat Enforcers<br/>AllowedTargets + AllowedMethods]
+        Smart[Alice's Smart Account<br/>HybridDeleGator]
+        Uniswap[Uniswap Router]
+    end
+
+    Alice[Alice - human] -->|signs ERC-7710 delegation<br/>max 100 USDC, Uniswap only| DM
+
+    Judge -->|submit 96-byte<br/>FROST signature| AC
+    AC -->|1. verify signature| FROST
+    FROST -->|signer matches<br/>committee pubkey?| AC
+    AC -->|2. call redeemDelegations<br/>with signed delegation + swap calldata| DM
+    DM -->|3. enforce caveats| Caveats
+    Caveats -->|4. execute from<br/>Alice's account| Smart
+    Smart -->|5. swap USDC| Uniswap
 ```
+
+The committee has no independent authority. Every action flows through two layers of verification:
+1. **FROST consensus** - cryptographic proof that 2-of-3 agents agreed (off-chain, ~5,600 gas to verify)
+2. **Delegation caveats** - on-chain policy enforcement by DelegationManager (target allowlist, method restrictions, amount limits)
 
 ## Signing ceremony
 
