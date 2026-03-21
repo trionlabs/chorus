@@ -1,44 +1,28 @@
 {
-    "type": "https://eips.ethereum.org/EIPs/eip-8004#registration-v1",
-    "name": "Chorus Committee",
-    "description": "FROST threshold signing committee (2-of-3). Three agents (Guard, Judge, Steward) independently evaluate proposals and collectively produce a single Schnorr signature verified on-chain. Operates within human-delegated ERC-7710 permissions with caveated bounds.",
-    "image": "",
-    "properties": {
-        "threshold": "2-of-3",
-        "groupPublicKey": "0xe9ce73256b6f8f46183b5b6911d54b019809746a",
-        "groupPx": "0xab0f3b4778f9a67c104c3df9b73116baa6c90c7795b56c95592cc46e8511dd87",
-        "groupPy": "0x97df3e7b5b8bc767f7ccd6f95794da24dfd15183d649612571c47413b8a80a91",
-        "contract": "0xda9F141BEA3D4172dd4c17c0102d833Ec0202EB4",
-        "chain": "base-sepolia",
-        "agents": [
-            {
-                "name": "Guard",
-                "role": "risk & security",
-                "shareIndex": 0,
-                "maxValue": "3 USDC",
-                "behavior": "conservative - rejects large or unusual transfers"
-            },
-            {
-                "name": "Judge",
-                "role": "policy & compliance",
-                "shareIndex": 1,
-                "maxValue": "100 USDC",
-                "behavior": "strict - rejects anything outside explicit policy"
-            },
-            {
-                "name": "Steward",
-                "role": "treasury & operations",
-                "shareIndex": 2,
-                "maxValue": "100 USDC",
-                "behavior": "pragmatic - approves if numbers work"
-            }
-        ],
-        "protocol": "FROST RFC 9591",
-        "verification": "~5600 gas constant",
-        "coordination": "XMTP E2E encrypted",
-        "delegation": "ERC-7710 via MetaMask DelegationManager"
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Chorus Committee",
+  "description": "FROST threshold signing committee (2-of-3). Three AI agents (Guard, Judge, Steward) independently evaluate proposals and collectively produce a single Schnorr signature verified on-chain at ~5,300 gas constant cost regardless of committee size. No agent holds the private key - it is generated distributedly via DKG and never exists whole. The committee operates within human-delegated ERC-7710 permissions: Uniswap Router only, max 100 USDC, exactInputSingle and approve methods only. Group public key: 0xe9ce73256b6f8f46183b5b6911d54b019809746a. Contract: 0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4 on Base Sepolia. Guard (index 0) evaluates risk with a 3 USDC threshold. Judge (index 1) enforces delegation policy compliance. Steward (index 2) checks operational viability. Coordination over XMTP E2E encrypted messaging. Protocol: FROST RFC 9591.",
+  "image": "",
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "https://github.com/trionlabs/chorus"
     },
-    "endpoints": {
-        "web": "https://github.com/trionlabs/chorus"
+    {
+      "name": "XMTP",
+      "endpoint": "xmtp://chorus-committee",
+      "version": "2.3.0"
     }
+  ],
+  "active": true,
+  "registrations": [
+    {
+      "agentId": 35249,
+      "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    }
+  ],
+  "supportedTrust": [
+    "reputation"
+  ],
+  "x402Support": false
 }
