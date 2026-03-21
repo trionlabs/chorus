@@ -209,6 +209,11 @@ scripts/
 - USDC approve via FROST + delegation: [`0xa0930808...`](https://sepolia.basescan.org/tx/0xa0930808cdc8e338479b7ade8faf8bf5166fdbf6aa2047f7d821696a93c8ac14)
 - Uniswap swap (5 USDC -> WETH) via FROST + delegation: [`0x9137adb6...`](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)
 - ERC-8004 committee identity (Base mainnet): [`0xc4387b14...`](https://basescan.org/tx/0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a)
+
+**Base mainnet:**
+- AgentConsensus (verified): [`0xEE185FD094A4624B95120CBa8180c92f51794162`](https://basescan.org/address/0xEE185FD094A4624B95120CBa8180c92f51794162)
+- Committee registration: [`0x31c2e020...`](https://basescan.org/tx/0x31c2e0202abf8605c2ed59c92d07325d7505cb52d3d477231e663254a854c5d8)
+- FROST-signed execution: [`0x6bea2ec9...`](https://basescan.org/tx/0x6bea2ec95bb4e679231274179e23e882117d7149dc7b8a309b49afbcb77ff59a)
 - USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - Uniswap SwapRouter02: `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`
 
