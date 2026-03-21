@@ -2,6 +2,8 @@
 
 FROST threshold signatures as proof of multi-agent consensus on Ethereum.
 
+[FROST](https://frost.zfnd.org/frost.html) (Flexible Round-Optimized Schnorr Threshold) is a protocol where a group of participants can collectively produce a single Schnorr signature without any party ever holding the full private key. If at least t-of-n participants agree, their partial signatures combine into one valid signature. If they don't agree, nothing happens.
+
 A committee of AI agents independently evaluates proposals, reaches threshold agreement via FROST, and executes on-chain - all within human-delegated permissions (ERC-7710). The FROST signature is cryptographic proof that multiple agents agreed. 96 bytes, ~5,600 gas, constant cost regardless of committee size.
 
 ## How it works
@@ -125,6 +127,8 @@ Measured on Base Sepolia. FROST verification cost is constant - the same whether
 | 50-of-100 | ~5,600 | ~150,000 | 96% cheaper |
 
 Safe's `checkNSignatures` costs ~3,000 gas per signer (ecrecover per signature). FROST costs ~5,600 regardless of committee size because the verifier sees one 96-byte Schnorr signature, not t individual ECDSA signatures. The gap widens as the committee grows.
+
+At 50-of-100, FROST costs the same as a single token transfer. A Safe multisig costs more than a Uniswap swap.
 
 Beyond gas, FROST provides signer privacy - you can't tell which agents signed from the on-chain signature. With Safe multisig, each signer's address is recoverable.
 
