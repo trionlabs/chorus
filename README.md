@@ -177,6 +177,9 @@ pnpm demo:xmtp
 # run DKG over XMTP (distributed key generation + signing)
 pnpm demo:dkg
 
+# full lifecycle: DKG -> register committee -> signing -> on-chain execution
+pnpm demo:lifecycle
+
 # run a standalone agent
 AGENT_ROLE=guard AGENT_WALLET_KEY=0x... COMMITTEE_ID=0x... pnpm agent
 
