@@ -5,7 +5,11 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx src/demo.ts"
+  },
+  "dependencies": {
+    "viem": "^2.47.4"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
