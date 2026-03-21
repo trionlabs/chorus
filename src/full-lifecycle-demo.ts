@@ -44,6 +44,18 @@ function pause(label: string): Promise<void> {
   });
 }
 
+function explorerUrl(chain: { id: number }, hash: string): string {
+  return chain.id === 8453
+    ? `https://basescan.org/tx/${hash}`
+    : `https://sepolia.basescan.org/tx/${hash}`;
+}
+
+function explorerAddr(chain: { id: number }, addr: string): string {
+  return chain.id === 8453
+    ? `https://basescan.org/address/${addr}`
+    : `https://sepolia.basescan.org/address/${addr}`;
+}
+
 const POLICIES: Policy[] = [
   { maxValue: 3_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
   { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
@@ -88,11 +100,14 @@ async function main() {
       const id = i + 1;
       agents[i]!.on("dkg/round1", async (msg, reply, sendDm) => {
         if (msg.type !== "dkg/round1" || msg.signerIndex === id) return;
+        console.log(`[${NAMES[i]}] <- dkg/round1 from ${NAMES[msg.signerIndex - 1]} (XMTP group)`);
         round1Received[id]![msg.signerIndex] = msg.commitments;
         if (Object.keys(round1Received[id]!).length === SIGNERS - 1) {
+          console.log(`[${NAMES[i]}] all round1 received, computing round2 shares...`);
           const p2 = dkgPart2(secrets[id]!, round1Received[id]!);
           round2Secrets[id] = p2.secret_package;
           for (const [pid, share] of Object.entries(p2.round2_packages)) {
+            console.log(`[${NAMES[i]}] -> dkg/round2 to ${NAMES[Number(pid) - 1]} (XMTP DM - secret)`);
             await sendDm(agents[Number(pid)-1]!.address as Hex, {
               type: "dkg/round2", ceremonyId: "lc", fromIndex: id, toIndex: Number(pid), share,
             });
@@ -102,11 +117,12 @@ async function main() {
 
       agents[i]!.on("dkg/round2", async (msg, reply) => {
         if (msg.type !== "dkg/round2" || msg.toIndex !== id) return;
+        console.log(`[${NAMES[i]}] <- dkg/round2 from ${NAMES[msg.fromIndex - 1]} (XMTP DM - secret share)`);
         round2Received[id]![msg.fromIndex] = msg.share;
         if (Object.keys(round2Received[id]!).length === SIGNERS - 1) {
           const p3 = dkgPart3(round2Secrets[id]!, round1Received[id]!, round2Received[id]!);
           dkgResults[id] = p3;
-          console.log(`[${NAMES[i]}] DKG complete`);
+          console.log(`[${NAMES[i]}] DKG finalized - key share derived`);
           await reply({ type: "dkg/confirm", ceremonyId: "lc", signerIndex: id, publicKey: p3.public_key_package.slice(0, 20) + "..." });
           dkgDone++; check();
         }
@@ -120,7 +136,10 @@ async function main() {
   for (const a of agents) await a.start();
   await new Promise(r => setTimeout(r, 2000));
   const peerAddresses = agents.map(a => a.address as Hex);
+  console.log("\nXMTP agents:");
+  peerAddresses.forEach((addr, i) => console.log(`  ${NAMES[i]}: ${addr}`));
   const groupId = await agents[0]!.createGroup(peerAddresses.slice(1) as Hex[], "chorus-lifecycle");
+  console.log(`XMTP group: ${groupId.slice(0, 24)}...`);
   await new Promise(r => setTimeout(r, 2000));
 
   // generate and broadcast round1
@@ -160,6 +179,8 @@ async function main() {
   const regReceipt = await publicClient.waitForTransactionReceipt({ hash: regTx });
   console.log(`registered: ${regTx}`);
   console.log(`status: ${regReceipt.status}`);
+  console.log(`explorer: ${explorerUrl(chain, regTx)}`);
+  console.log(`contract: ${explorerAddr(chain, CONTRACT)}`);
 
   const committeeId = keccak256(encodeAbiParameters([{type:"uint256"},{type:"uint256"}], [pk.px, pk.py]));
   await new Promise(r => setTimeout(r, 3000));
@@ -179,6 +200,7 @@ async function main() {
     environment: env,
   });
   console.log("alice smart account:", smartAccount.address);
+  console.log("alice explorer:", explorerAddr(chain, smartAccount.address));
 
   // check USDC balance
   const usdcBal = await publicClient.readContract({
@@ -278,7 +300,21 @@ async function main() {
     };
 
     for (const t of ["frost/accept","frost/reject","frost/round1","frost/signing-package","frost/round2","frost/signature","frost/executed"]) {
-      agents[idx]!.on(t, async (msg, reply) => processMsg(msg, reply));
+      agents[idx]!.on(t, async (msg, reply) => {
+        if (msg.type === "frost/round1" && "signerIndex" in msg) {
+          console.log(`[${NAMES[idx]}] <- frost/round1 from ${NAMES[(msg as any).signerIndex]} (XMTP group)`);
+        } else if (msg.type === "frost/signing-package") {
+          console.log(`[${NAMES[idx]}] <- frost/signing-package from coordinator (XMTP group)`);
+        } else if (msg.type === "frost/round2" && "signerIndex" in msg) {
+          console.log(`[${NAMES[idx]}] <- frost/round2 share from ${NAMES[(msg as any).signerIndex]} (XMTP group)`);
+        } else if (msg.type === "frost/signature") {
+          console.log(`[${NAMES[idx]}] <- frost/signature aggregated (XMTP group)`);
+        } else if (msg.type === "frost/executed" && "txHash" in msg) {
+          console.log(`[${NAMES[idx]}] <- frost/executed: ${(msg as any).txHash}`);
+          console.log(`   explorer: ${explorerUrl(chain, (msg as any).txHash)}`);
+        }
+        await processMsg(msg, reply);
+      });
     }
 
     agents[idx]!.on("frost/propose", async (msg, reply) => {
