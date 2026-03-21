@@ -9,6 +9,7 @@
     "demo": "tsx src/demo.ts"
   },
   "dependencies": {
+    "@metamask/delegation-toolkit": "^0.13.0",
     "@xmtp/agent-sdk": "^2.3.0",
     "viem": "^2.47.4"
   },
