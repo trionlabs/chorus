@@ -50,7 +50,11 @@ async function main() {
       groupPy: "0x" + pk.py.toString(16),
       contract: "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4",
       chain: "base-sepolia",
-      agents: ["Guard (risk)", "Judge (compliance)", "Steward (operations)"],
+      agents: [
+        { name: "Guard", role: "risk & security", shareIndex: 0, maxValue: "3 USDC", behavior: "conservative - rejects large or unusual transfers" },
+        { name: "Judge", role: "policy & compliance", shareIndex: 1, maxValue: "100 USDC", behavior: "strict - rejects anything outside explicit policy" },
+        { name: "Steward", role: "treasury & operations", shareIndex: 2, maxValue: "100 USDC", behavior: "pragmatic - approves if numbers work" },
+      ],
       protocol: "FROST RFC 9591",
       verification: "~5600 gas constant",
       coordination: "XMTP E2E encrypted",
