@@ -349,23 +349,25 @@ async function main() {
       await executeActions(actions, contexts[idx]!, runtimes[idx]!, configs[idx]!, reply);
     };
 
+    // only show signing messages from agent 0's perspective (avoid 3x duplication)
     for (const t of ["frost/accept","frost/reject","frost/round1","frost/signing-package","frost/round2","frost/signature","frost/executed"]) {
       agents[idx]!.on(t, async (msg, reply) => {
-        if (msg.type === "frost/round1" && "signerIndex" in msg) {
-          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- frost/round1${RESET} from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
-        } else if (msg.type === "frost/signing-package") {
-          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- signing-package${RESET} from coordinator ${DIM}(XMTP)${RESET}`);
-        } else if (msg.type === "frost/round2" && "signerIndex" in msg) {
-          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- frost/round2${RESET} share from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
-        } else if (msg.type === "frost/signature") {
-          console.log(`\n${BOLD}${GREEN}FROST signature aggregated${RESET} ${DIM}(96 bytes, ~5,300 gas to verify)${RESET}`);
-        } else if (msg.type === "frost/executed" && "txHash" in msg && idx === 0) {
-          // only show once (from first agent)
-          const txHash = (msg as any).txHash;
-          if (txHash !== "0x0") {
-            console.log(`\n${BOLD}${GREEN}on-chain execution confirmed${RESET}`);
-            console.log(`  tx: ${txHash}`);
-            console.log(`  ${CYAN}${explorerUrl(chain, txHash)}${RESET}`);
+        if (idx === 0) {
+          if (msg.type === "frost/round1" && "signerIndex" in msg && (msg as any).signerIndex !== 0) {
+            console.log(`${DIM}  <- round1 commitment from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
+          } else if (msg.type === "frost/signing-package") {
+            console.log(`${DIM}  <- signing package from coordinator ${BOLD}Judge${RESET} ${DIM}(XMTP)${RESET}`);
+          } else if (msg.type === "frost/round2" && "signerIndex" in msg && (msg as any).signerIndex !== 0) {
+            console.log(`${DIM}  <- round2 share from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
+          } else if (msg.type === "frost/signature") {
+            console.log(`\n${BOLD}${GREEN}  FROST signature aggregated${RESET} ${DIM}(96 bytes, ~5,300 gas to verify)${RESET}`);
+          } else if (msg.type === "frost/executed" && "txHash" in msg) {
+            const txHash = (msg as any).txHash;
+            if (txHash !== "0x0") {
+              console.log(`\n${BOLD}${GREEN}  on-chain execution confirmed${RESET}`);
+              console.log(`  tx: ${txHash}`);
+              console.log(`  ${CYAN}${explorerUrl(chain, txHash)}${RESET}`);
+            }
           }
         }
         await processMsg(msg, reply);
@@ -413,13 +415,13 @@ async function main() {
 
   // broadcast proposal
   const signingStart = Date.now();
-  console.log("proposal: swap 0.5 USDC for WETH on uniswap (via alice's delegation)");
+  console.log(`${BOLD}proposal:${RESET} swap 0.5 USDC for WETH on uniswap (via alice's delegation)\n`);
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
     transaction: tx, rationale: "swap 0.5 USDC for WETH via uniswap", timestamp: Date.now(),
   });
 
-  console.log("waiting for signing ceremony + on-chain execution...\n");
+  console.log(`\n${DIM}waiting for FROST ceremony over XMTP...${RESET}\n`);
 
   // wait for ceremony to complete (check periodically)
   for (let t = 0; t < 30; t++) {
