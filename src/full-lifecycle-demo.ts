@@ -72,10 +72,19 @@ async function main() {
   const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
   console.log("=== CHORUS FULL LIFECYCLE ===");
-  console.log(`chain: ${chain.name}\n`);
+  console.log(`chain: ${chain.name}`);
+  console.log(`contract: ${CONTRACT}`);
+  console.log(`threshold: ${THRESHOLD}-of-${SIGNERS}\n`);
+
+  console.log("agent committee:");
+  console.log("  Guard   (index 0) - risk & security - max 0.5 USDC - conservative");
+  console.log("  Judge   (index 1) - policy & compliance - max 100 USDC - strict");
+  console.log("  Steward (index 2) - treasury & operations - max 100 USDC - pragmatic");
+
+  await pause("agent roles defined. next: distributed key generation over XMTP");
 
   // ====== PHASE 1: DKG OVER XMTP ======
-  console.log("--- phase 1: distributed key generation over XMTP ---\n");
+  console.log("\n--- phase 1: distributed key generation over XMTP ---\n");
 
   const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
   const runDir = mkdtempSync(join(tmpdir(), "chorus-lifecycle-"));
@@ -330,7 +339,19 @@ async function main() {
 
     agents[idx]!.on("frost/propose", async (msg, reply) => {
       if (msg.type !== "frost/propose") return;
-      const result = evaluate(msg.transaction, POLICIES[idx]!);
+      const useAi = process.env.USE_AI === "true" || process.argv.includes("--ai");
+      let result;
+      if (useAi) {
+        const { aiEvaluate } = await import("./agent/ai-evaluator.js");
+        const { AGENT_ROLES } = await import("./agent/config.js");
+        console.log(`[${NAMES[idx]}] evaluating with Claude...`);
+        result = await aiEvaluate(msg.transaction, AGENT_ROLES[idx]!, {
+          usdcBalance: `${Number(usdcBal) / 1e6} USDC`,
+          delegationCaveats: "AllowedTargets: Uniswap Router + USDC. AllowedMethods: exactInputSingle + approve. Max 100 USDC.",
+        });
+      } else {
+        result = evaluate(msg.transaction, POLICIES[idx]!);
+      }
       console.log(`[${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
       contexts[idx] = createSigningCeremony(
         { proposalId: msg.proposalId, proposer: msg.proposer, transaction: msg.transaction, timestamp: msg.timestamp },
