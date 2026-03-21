@@ -17,9 +17,16 @@ import { createSigningCeremony } from "./ceremony/signing.js";
 import { createRuntime, extractPeerData, routeMessage, executeActions, type AgentConfig, type CeremonyRuntime } from "./agent/handler.js";
 import { evaluate, type Policy } from "./agent/evaluator.js";
 import { createSubmitter } from "./chain/submit.js";
+import { SWAP_ROUTER, USDC, WETH } from "./uniswap/client.js";
 import type { ProtocolMessage } from "./xmtp/messages.js";
 import type { Transaction, SigningContext } from "./ceremony/types.js";
 import type { SubmitTxCallback } from "./agent/handler.js";
+import {
+  toMetaMaskSmartAccount, getDeleGatorEnvironment, createDelegation,
+  Implementation, createExecution,
+} from "@metamask/delegation-toolkit";
+import { encodePermissionContexts, encodeExecutionCalldatas } from "@metamask/delegation-toolkit/utils";
+import { encodeFunctionData } from "viem";
 
 const CONTRACT = (process.env.CONTRACT_ADDRESS ?? "") as Hex;
 const KEY = (process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
@@ -38,9 +45,9 @@ function pause(label: string): Promise<void> {
 }
 
 const POLICIES: Policy[] = [
-  { maxValue: 500000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
-  { maxValue: 10000000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
-  { maxValue: 10000000000000000n, allowedTargets: ["0x000000000000000000000000000000000000dead"] },
+  { maxValue: 3_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
+  { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
+  { maxValue: 100_000_000n, allowedTargets: [SWAP_ROUTER.toLowerCase(), USDC.toLowerCase()] },
 ];
 
 async function main() {
@@ -157,18 +164,75 @@ async function main() {
   const committeeId = keccak256(encodeAbiParameters([{type:"uint256"},{type:"uint256"}], [pk.px, pk.py]));
   await new Promise(r => setTimeout(r, 3000));
 
-  await pause("committee registered on-chain. next: signing ceremony over XMTP");
+  await pause("committee registered on-chain. next: set up alice's delegation + uniswap swap");
 
-  // ====== PHASE 3: SIGNING CEREMONY OVER XMTP ======
-  console.log("\n--- phase 3: signing ceremony over XMTP ---\n");
+  // ====== PHASE 3: ALICE'S DELEGATION + SIGNING OVER XMTP ======
+  console.log("\n--- phase 3: alice's erc-7710 delegation ---\n");
 
-  const target = "0x000000000000000000000000000000000000dEaD" as Hex;
-  const tx: Transaction = { to: target, value: 1000000000000000n, data: "0x" as Hex };
+  const env = getDeleGatorEnvironment(chain.id);
+  const smartAccount = await toMetaMaskSmartAccount({
+    implementation: Implementation.Hybrid,
+    deployParams: [account.address, [], [], []],
+    deploySalt: ("0x" + "00".repeat(31) + "01") as Hex,
+    signer: { account },
+    client: publicClient as any,
+    environment: env,
+  });
+  console.log("alice smart account:", smartAccount.address);
 
-  const dm = account.address;
-  const mockCtx = ["0xdead"] as Hex[];
-  const modes = [("0x" + "00".repeat(32)) as Hex];
-  const execDatas = ["0xcafe"] as Hex[];
+  // check USDC balance
+  const usdcBal = await publicClient.readContract({
+    address: USDC as `0x${string}`,
+    abi: [{ name: "balanceOf", type: "function", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" }],
+    functionName: "balanceOf",
+    args: [smartAccount.address],
+  }) as bigint;
+  console.log("alice USDC:", Number(usdcBal) / 1e6);
+
+  // create delegation: alice -> AgentConsensus (uniswap scope)
+  const delegation = createDelegation({
+    environment: env,
+    to: CONTRACT as `0x${string}`,
+    from: smartAccount.address,
+    scope: {
+      type: "functionCall" as const,
+      targets: [SWAP_ROUTER, USDC],
+      selectors: ["0x04e45aaf", "0x095ea7b3"],
+    },
+  });
+  const delegSig = await smartAccount.signDelegation({ delegation });
+  const signedDelegation = { ...delegation, signature: delegSig };
+  const permContexts = encodePermissionContexts([[signedDelegation as any]]);
+  console.log("delegation signed (caveats:", delegation.caveats.length, "- uniswap + USDC only)");
+
+  // build swap: 5 USDC -> WETH
+  const swapCalldata = encodeFunctionData({
+    abi: [{
+      name: "exactInputSingle", type: "function", stateMutability: "payable",
+      inputs: [{ name: "params", type: "tuple", components: [
+        { name: "tokenIn", type: "address" }, { name: "tokenOut", type: "address" },
+        { name: "fee", type: "uint24" }, { name: "recipient", type: "address" },
+        { name: "amountIn", type: "uint256" }, { name: "amountOutMinimum", type: "uint256" },
+        { name: "sqrtPriceLimitX96", type: "uint160" },
+      ]}],
+      outputs: [{ name: "", type: "uint256" }],
+    }],
+    functionName: "exactInputSingle",
+    args: [{
+      tokenIn: USDC, tokenOut: WETH, fee: chain.id === 8453 ? 500 : 3000,
+      recipient: smartAccount.address,
+      amountIn: 5_000_000n, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
+    }],
+  });
+  const swapExec = createExecution({ target: SWAP_ROUTER, value: 0n, callData: swapCalldata });
+  const execCalldatas = encodeExecutionCalldatas([[swapExec]]);
+  const mode = ("0x" + "00".repeat(32)) as Hex;
+
+  console.log("swap: 5 USDC -> WETH on uniswap");
+
+  await pause("delegation created. next: signing ceremony over XMTP");
+
+  console.log("\n--- phase 4: signing ceremony over XMTP ---\n");
 
   const nonce = await publicClient.readContract({
     address: CONTRACT as `0x${string}`, abi: agentConsensusAbi, functionName: "getNonce", args: [committeeId],
@@ -176,7 +240,7 @@ async function main() {
 
   const executionHash = keccak256(encodeAbiParameters(
     [{type:"address"},{type:"bytes[]"},{type:"bytes32[]"},{type:"bytes[]"}],
-    [dm, mockCtx, modes, execDatas]
+    [env.DelegationManager, permContexts, [mode], execCalldatas]
   ));
   const actionHash = keccak256(encodeAbiParameters(
     [{type:"bytes32"},{type:"bytes32"},{type:"uint256"}],
@@ -189,12 +253,15 @@ async function main() {
 
   const submitter = createSubmitter({
     contractAddress: CONTRACT as `0x${string}`, committeeId: committeeId as `0x${string}`,
-    delegationManager: dm as `0x${string}`, walletKey: KEY, rpcUrl,
+    delegationManager: env.DelegationManager, walletKey: KEY, rpcUrl,
   });
   const onSubmitTx: SubmitTxCallback = async (sig) => {
-    const result = await submitter.submitDelegated(mockCtx, modes, execDatas, sig);
+    const result = await submitter.submitDelegated(permContexts, [mode], execCalldatas, sig);
     return { txHash: result.txHash, success: result.success };
   };
+
+  // proposal shows the swap
+  const tx: Transaction = { to: SWAP_ROUTER as Hex, value: 5_000_000n, data: swapCalldata as Hex };
 
   const configs: AgentConfig[] = NAMES.map((name, i) => ({
     name, shareIndex: i, keysDir, threshold: THRESHOLD, totalSigners: SIGNERS, onSubmitTx,
@@ -231,10 +298,10 @@ async function main() {
   }
 
   // broadcast proposal
-  console.log(`proposal: transfer ${tx.value} wei to ${tx.to}`);
+  console.log("proposal: swap 5 USDC for WETH on uniswap (via alice's delegation)");
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
-    transaction: tx, rationale: "lifecycle test", timestamp: Date.now(),
+    transaction: tx, rationale: "swap 5 USDC for WETH via uniswap", timestamp: Date.now(),
   });
 
   console.log("waiting for signing ceremony + on-chain execution...\n");
@@ -256,12 +323,23 @@ async function main() {
 
   await pause("signing complete. check the tx on BaseScan");
 
+  // check final USDC balance
+  const finalUsdc = await publicClient.readContract({
+    address: USDC as `0x${string}`,
+    abi: [{ name: "balanceOf", type: "function", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" }],
+    functionName: "balanceOf",
+    args: [smartAccount.address],
+  }) as bigint;
+  console.log(`\nalice USDC: ${Number(finalUsdc) / 1e6} (was ${Number(usdcBal) / 1e6})`);
+
   console.log("\n=== LIFECYCLE COMPLETE ===");
   console.log("1. DKG: 3 agents generated keys over XMTP (round2 via DM, never broadcast)");
   console.log("2. committee registered on-chain with DKG-derived group public key");
-  console.log("3. signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP");
-  console.log("4. 96-byte FROST signature verified on-chain (~5,300 gas, constant)");
-  console.log("5. no agent ever held the full private key");
+  console.log("3. alice delegated to committee: uniswap only, USDC only (ERC-7710)");
+  console.log("4. signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP");
+  console.log("5. delegation redeemed -> uniswap swap executed from alice's account");
+  console.log("6. 96-byte FROST signature verified on-chain (~5,300 gas, constant)");
+  console.log("7. no agent ever held the full private key");
 
   for (const a of agents) await a.stop();
 }
