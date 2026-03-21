@@ -5,7 +5,7 @@ import {FROST} from "safe-frost/contracts/FROST.sol";
 
 /// @title AgentConsensus
 /// @notice FROST threshold-signed agent committee with delegation-only execution.
-/// The committee has no independent authority -- it can only act within
+/// The committee has no independent authority - it can only act within
 /// delegated permissions via ERC-7710 DelegationManager.
 contract AgentConsensus {
     struct Committee {
