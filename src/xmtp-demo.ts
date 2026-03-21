@@ -255,6 +255,7 @@ async function main() {
           type: "frost/accept",
           proposalId: msg.proposalId,
           signerIndex: idx,
+          reason: result.reason,
           timestamp: Date.now(),
         });
       } else {

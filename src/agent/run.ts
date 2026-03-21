@@ -114,6 +114,7 @@ export async function runAgent(options: RunAgentOptions): Promise<ChorusAgent> {
         type: "frost/accept",
         proposalId: msg.proposalId,
         signerIndex: role.shareIndex,
+        reason: result.reason,
         timestamp: Date.now(),
       });
     } else {

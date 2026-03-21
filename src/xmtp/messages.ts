@@ -15,6 +15,7 @@ export interface FrostAccept {
   type: "frost/accept";
   proposalId: string;
   signerIndex: number;
+  reason: string;
   timestamp: number;
 }
 
