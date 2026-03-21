@@ -107,11 +107,26 @@ pnpm install
 # generate frost keys (2-of-3)
 safe-frost split --threshold 2 --signers 3
 
-# run local demo
+# run local demo (no xmtp, no chain)
 pnpm demo
+
+# run xmtp multi-agent demo (3 agents, frost ceremony, on-chain execution)
+pnpm demo:xmtp
+
+# run a standalone agent
+AGENT_ROLE=guard AGENT_WALLET_KEY=0x... COMMITTEE_ID=0x... pnpm agent
 
 # run foundry tests
 cd contracts && forge test
+
+# deploy contract to base sepolia
+cd contracts && forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC --private-key $DEPLOYER_PRIVATE_KEY --broadcast
+
+# register committee on-chain
+npx tsx scripts/register-committee.ts
+
+# create erc-7710 delegation (alice -> committee, uniswap + 100 usdc cap)
+npx tsx scripts/create-delegation.ts
 ```
 
 ## Project structure
