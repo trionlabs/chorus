@@ -1,6 +1,6 @@
 # Chorus
 
-FROST threshold signatures as proof of multi-agent consensus on Ethereum.
+AI agent committees with FROST threshold consensus and human-delegated authority.
 
 [FROST](https://frost.zfnd.org/frost.html) (Flexible Round-Optimized Schnorr Threshold) is a protocol where a group of participants can collectively produce a single Schnorr signature without any party ever holding the full private key. If at least t-of-n participants agree, their partial signatures combine into one valid signature. If they don't agree, nothing happens.
 
