@@ -214,6 +214,9 @@ scripts/
 - AgentConsensus (verified): [`0xEE185FD094A4624B95120CBa8180c92f51794162`](https://basescan.org/address/0xEE185FD094A4624B95120CBa8180c92f51794162)
 - Committee registration: [`0x31c2e020...`](https://basescan.org/tx/0x31c2e0202abf8605c2ed59c92d07325d7505cb52d3d477231e663254a854c5d8)
 - FROST-signed execution: [`0x6bea2ec9...`](https://basescan.org/tx/0x6bea2ec95bb4e679231274179e23e882117d7149dc7b8a309b49afbcb77ff59a)
+- Alice HybridDeleGator: [`0x0F85A095...`](https://basescan.org/address/0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52)
+- USDC approve via FROST + delegation: [`0xc5ada41b...`](https://basescan.org/tx/0xc5ada41b8194ef320ce79d92f5efc5ed18ecfe735ed86f453178c8c16ceb3685)
+- Uniswap swap (2 USDC -> WETH) via FROST + delegation: [`0x1b9b9cca...`](https://basescan.org/tx/0x1b9b9cca4ae7082344ccbec1032548120ff100936a756b67b1a4ec0cb71ca518)
 - USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - Uniswap SwapRouter02: `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`
 
