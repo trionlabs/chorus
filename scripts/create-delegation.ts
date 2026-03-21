@@ -1,15 +1,17 @@
 import {
   createDelegation,
   signDelegation,
+  createCaveat,
   getDeleGatorEnvironment,
 } from "@metamask/delegation-toolkit";
-import type { Address, Hex } from "viem";
-import { SWAP_ROUTER } from "../src/uniswap/client.js";
+import { encodeAbiParameters, type Address, type Hex } from "viem";
+import { SWAP_ROUTER, USDC } from "../src/uniswap/client.js";
 import { writeFileSync } from "fs";
 
 const ALICE_KEY = (process.env.ALICE_PRIVATE_KEY ?? process.env.DEPLOYER_PRIVATE_KEY ?? "") as Hex;
 const ALICE_ADDRESS = (process.env.ALICE_ADDRESS ?? "") as Address;
 const CONTRACT_ADDRESS = (process.env.CONTRACT_ADDRESS ?? "") as Address;
+const MAX_USDC = 100_000_000n; // 100 USDC (6 decimals)
 
 async function main() {
   if (!ALICE_KEY || !CONTRACT_ADDRESS || !ALICE_ADDRESS) {
@@ -17,20 +19,41 @@ async function main() {
     process.exit(1);
   }
 
-  const environment = getDeleGatorEnvironment(84532);
+  const env = getDeleGatorEnvironment(84532);
   console.log("delegation environment loaded");
-  console.log("DelegationManager:", environment.DelegationManager);
+  console.log("DelegationManager:", env.DelegationManager);
 
-  // create delegation: alice -> AgentConsensus with function call scope
-  // restricted to Uniswap Router + exactInputSingle method
+  // build caveats manually for maximum control
+  const caveats = [
+    // caveat 1: only Uniswap Router
+    createCaveat(
+      env.caveatEnforcers.AllowedTargetsEnforcer,
+      encodeAbiParameters([{ type: "address[]" }], [[SWAP_ROUTER]]),
+    ),
+    // caveat 2: only exactInputSingle method
+    createCaveat(
+      env.caveatEnforcers.AllowedMethodsEnforcer,
+      encodeAbiParameters([{ type: "bytes4[]" }], [["0x414bf389"]]),
+    ),
+    // caveat 3: max 100 USDC transfer amount
+    createCaveat(
+      env.caveatEnforcers.ERC20TransferAmountEnforcer,
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "uint256" }],
+        [USDC, MAX_USDC],
+      ),
+    ),
+  ];
+
   const delegation = createDelegation({
-    environment,
+    environment: env,
     to: CONTRACT_ADDRESS,
     from: ALICE_ADDRESS,
+    caveats,
     scope: {
       type: "functionCall" as const,
       targets: [SWAP_ROUTER],
-      selectors: ["0x414bf389"], // exactInputSingle(ExactInputSingleParams)
+      selectors: ["0x414bf389"],
     },
   });
 
@@ -39,24 +62,32 @@ async function main() {
   console.log("  delegator:", delegation.delegator);
   console.log("  caveats:", delegation.caveats.length);
 
-  // sign the delegation with alice's private key
+  for (const c of delegation.caveats) {
+    const enforcerName = Object.entries(env.caveatEnforcers)
+      .find(([, addr]) => addr.toLowerCase() === c.enforcer.toLowerCase())?.[0] ?? "unknown";
+    console.log(`    ${enforcerName}: ${c.enforcer.slice(0, 18)}...`);
+  }
+
   const signature = await signDelegation({
     privateKey: ALICE_KEY,
     delegation,
-    delegationManager: environment.DelegationManager,
+    delegationManager: env.DelegationManager,
     chainId: 84532,
   });
 
   const signedDelegation = { ...delegation, signature };
 
-  console.log("delegation signed");
-
   const output = {
     delegation: signedDelegation,
     aliceAddress: ALICE_ADDRESS,
     agentConsensus: CONTRACT_ADDRESS,
-    delegationManager: environment.DelegationManager,
+    delegationManager: env.DelegationManager,
     chainId: 84532,
+    caveats: {
+      allowedTargets: [SWAP_ROUTER],
+      allowedMethods: ["exactInputSingle"],
+      maxUsdc: MAX_USDC.toString(),
+    },
   };
 
   writeFileSync("delegation.json", JSON.stringify(output, (_k, v) =>
