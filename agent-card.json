@@ -9,9 +9,16 @@
       "endpoint": "https://github.com/trionlabs/chorus"
     },
     {
-      "name": "XMTP",
-      "endpoint": "xmtp://chorus-committee",
-      "version": "2.3.0"
+      "name": "agentWallet",
+      "endpoint": "eip155:84532:0x547Fe7edf7Ab470042d6c3F18dE522e801fb12Cf"
+    },
+    {
+      "name": "agentWallet",
+      "endpoint": "eip155:84532:0xD498101B3F71EE998F788EaD1db76baca5c693c0"
+    },
+    {
+      "name": "agentWallet",
+      "endpoint": "eip155:84532:0xf39ba9EC106Dfb089e8b8214fFE660e9E0cA2153"
     }
   ],
   "active": true,
@@ -19,7 +26,7 @@
     {
       "agentId": 35249,
       "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
-    },
+    }
   ],
   "supportedTrust": [
     "reputation"
