@@ -37,7 +37,7 @@ export function createSubmitter(config: SubmitConfig) {
       modes: Hex[],
       executionCallDatas: Hex[],
       signature: SignatureResult,
-    ): Promise<{ txHash: Hex; success: boolean }> {
+    ): Promise<{ txHash: Hex; success: boolean; gasUsed: bigint }> {
       const txHash = await walletClient.writeContract({
         address: config.contractAddress,
         abi: agentConsensusAbi,
@@ -64,6 +64,7 @@ export function createSubmitter(config: SubmitConfig) {
       return {
         txHash,
         success: receipt.status === "success",
+        gasUsed: receipt.gasUsed,
       };
     },
 

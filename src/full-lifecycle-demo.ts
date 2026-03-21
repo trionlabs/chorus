@@ -65,6 +65,7 @@ const POLICIES: Policy[] = [
 async function main() {
   if (!CONTRACT || !KEY) { console.error("set CONTRACT_ADDRESS and DEPLOYER_PRIVATE_KEY"); process.exit(1); }
 
+  const startTime = Date.now();
   const chain = getChain();
   const rpcUrl = getRpcUrl(chain);
   const account = privateKeyToAccount(KEY);
@@ -73,12 +74,14 @@ async function main() {
 
   console.log("=== CHORUS FULL LIFECYCLE ===");
   console.log(`chain: ${chain.name}`);
-  console.log(`contract: ${CONTRACT}`);
-  console.log(`threshold: ${THRESHOLD}-of-${SIGNERS}\n`);
+  console.log(`contract: ${explorerAddr(chain, CONTRACT)}`);
+  console.log(`protocol: FROST RFC 9591 (secp256k1)`);
+  console.log(`threshold: ${THRESHOLD}-of-${SIGNERS}`);
+  console.log(`erc-8004: https://www.8004scan.io/agents/base/35249\n`);
 
   console.log("agent committee:");
-  console.log("  Guard   (index 0) - risk & security - max 0.5 USDC - conservative");
-  console.log("  Judge   (index 1) - policy & compliance - max 100 USDC - strict");
+  console.log("  Guard   (index 0) - risk & security     - max 0.5 USDC  - conservative");
+  console.log("  Judge   (index 1) - policy & compliance  - max 100 USDC  - strict");
   console.log("  Steward (index 2) - treasury & operations - max 100 USDC - pragmatic");
 
   await pause("agent roles defined. next: distributed key generation over XMTP");
@@ -164,8 +167,10 @@ async function main() {
     });
   }
 
+  const dkgStart = Date.now();
   console.log("DKG round1 broadcast, waiting...");
   await Promise.race([dkgComplete, new Promise((_, rej) => setTimeout(() => rej(new Error("DKG timeout")), 60000))]);
+  const dkgElapsed = ((Date.now() - dkgStart) / 1000).toFixed(1);
 
   // write keys
   const keysDir = join(runDir, "keys");
@@ -173,6 +178,8 @@ async function main() {
   writeDkgKeys(keysDir, dkgResults, pubKeys[0]!);
   const pk = getPublicKey(keysDir);
   console.log(`\ngroup pubkey: ${pk.address}`);
+  console.log(`group address: ${explorerAddr(chain, pk.address)}`);
+  console.log(`DKG completed in ${dkgElapsed}s`);
   console.log("all 3 agents derived their key share. no agent ever saw the full private key.");
 
   await pause("DKG complete. next: register committee on-chain");
@@ -188,10 +195,12 @@ async function main() {
   const regReceipt = await publicClient.waitForTransactionReceipt({ hash: regTx });
   console.log(`registered: ${regTx}`);
   console.log(`status: ${regReceipt.status}`);
+  console.log(`gas: ${regReceipt.gasUsed.toString()}`);
   console.log(`explorer: ${explorerUrl(chain, regTx)}`);
   console.log(`contract: ${explorerAddr(chain, CONTRACT)}`);
 
   const committeeId = keccak256(encodeAbiParameters([{type:"uint256"},{type:"uint256"}], [pk.px, pk.py]));
+  console.log(`committee ID: ${committeeId}`);
   await new Promise(r => setTimeout(r, 3000));
 
   await pause("committee registered on-chain. next: set up alice's delegation + uniswap swap");
@@ -234,14 +243,15 @@ async function main() {
   const delegSig = await smartAccount.signDelegation({ delegation });
   const signedDelegation = { ...delegation, signature: delegSig };
   const permContexts = encodePermissionContexts([[signedDelegation as any]]);
-  console.log("\nalice's delegation:");
+  console.log("\nalice's ERC-7710 delegation:");
   console.log("  delegate: AgentConsensus (the FROST committee)");
   console.log("  delegator: alice's smart account");
-  console.log("  caveats:");
-  console.log("    - AllowedTargets: Uniswap Router + USDC contract only");
-  console.log("    - AllowedMethods: exactInputSingle (swap) + approve only");
-  console.log("  the committee CANNOT do anything outside these bounds");
-  console.log("  signed off-chain (no tx needed)");
+  console.log(`  DelegationManager: ${explorerAddr(chain, env.DelegationManager)}`);
+  console.log(`  caveats (${delegation.caveats.length}):`);
+  console.log("    - AllowedTargetsEnforcer: Uniswap Router + USDC contract only");
+  console.log("    - AllowedMethodsEnforcer: exactInputSingle (0x04e45aaf) + approve (0x095ea7b3)");
+  console.log("  the committee CANNOT call any other contract or method");
+  console.log("  signed off-chain (no on-chain tx, no gas)");
 
   // build swap: 5 USDC -> WETH
   const swapCalldata = encodeFunctionData({
@@ -295,6 +305,10 @@ async function main() {
   });
   const onSubmitTx: SubmitTxCallback = async (sig) => {
     const result = await submitter.submitDelegated(permContexts, [mode], execCalldatas, sig);
+    if (result.success) {
+      console.log(`gas used: ${result.gasUsed.toString()}`);
+      console.log(`coordinator: Judge (lowest accepted index)`);
+    }
     return { txHash: result.txHash, success: result.success };
   };
 
@@ -366,6 +380,7 @@ async function main() {
   }
 
   // broadcast proposal
+  const signingStart = Date.now();
   console.log("proposal: swap 1 USDC for WETH on uniswap (via alice's delegation)");
   await agents[0]!.sendToGroup(groupId, {
     type: "frost/propose", proposalId: `lc-${Date.now()}`, proposer: 0,
@@ -398,21 +413,31 @@ async function main() {
 
   await pause("signing complete. check the tx on BaseScan");
 
-  // check final USDC balance
+  const signingElapsed = ((Date.now() - signingStart) / 1000).toFixed(1);
+
+  // check final balances
+  const erc20Abi = [{ name: "balanceOf", type: "function", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" }] as const;
   const finalUsdc = await publicClient.readContract({
-    address: USDC as `0x${string}`,
-    abi: [{ name: "balanceOf", type: "function", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" }],
-    functionName: "balanceOf",
-    args: [smartAccount.address],
+    address: USDC as `0x${string}`, abi: erc20Abi, functionName: "balanceOf", args: [smartAccount.address],
   }) as bigint;
-  console.log(`\nalice USDC: ${Number(finalUsdc) / 1e6} (was ${Number(usdcBal) / 1e6})`);
+  const wethBal = await publicClient.readContract({
+    address: WETH as `0x${string}`, abi: erc20Abi, functionName: "balanceOf", args: [smartAccount.address],
+  }) as bigint;
+
+  const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  console.log(`\n--- results ---`);
+  console.log(`alice USDC: ${Number(finalUsdc) / 1e6} (was ${Number(usdcBal) / 1e6})`);
+  console.log(`alice WETH: ${Number(wethBal) / 1e18}`);
+  console.log(`signing ceremony: ${signingElapsed}s`);
+  console.log(`total time: ${totalElapsed}s`);
 
   console.log("\n=== LIFECYCLE COMPLETE ===");
   console.log("1. DKG: 3 agents generated keys over XMTP (round2 via DM, never broadcast)");
   console.log("2. committee registered on-chain with DKG-derived group public key");
   console.log("3. alice delegated to committee: uniswap only, USDC only (ERC-7710)");
   console.log("4. signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP");
-  console.log("5. delegation redeemed -> uniswap swap executed from alice's account");
+  console.log("5. delegation redeemed -> uniswap swap from alice's account -> WETH received");
   console.log("6. 96-byte FROST signature verified on-chain (~5,300 gas, constant)");
   console.log("7. no agent ever held the full private key");
 
