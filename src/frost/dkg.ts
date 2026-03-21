@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import { mkdirSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -67,6 +68,23 @@ export function dkgPart3(
     round1_packages: round1Packages,
     round2_packages: round2Packages,
   });
+}
+
+// write DKG output as safe-frost compatible key files
+// accepts either Record<number, string> (hex key packages) or Record<number, { key_package: string }>
+export function writeDkgKeys(
+  outputDir: string,
+  keyPackages: Record<number, string | { key_package: string; public_key_package: string }>,
+  publicKeyPackage: string,
+): void {
+  mkdirSync(outputDir, { recursive: true });
+  writeFileSync(join(outputDir, "key.pub"), Buffer.from(publicKeyPackage, "hex"));
+  for (const [id, value] of Object.entries(keyPackages)) {
+    const hex = typeof value === "string" ? value : value.key_package;
+    // FROST identifiers are 1-indexed, safe-frost key files are 0-indexed
+    const fileIndex = Number(id) - 1;
+    writeFileSync(join(outputDir, `key.${fileIndex}`), Buffer.from(hex, "hex"));
+  }
 }
 
 // run a full local DKG ceremony (all participants in one process)

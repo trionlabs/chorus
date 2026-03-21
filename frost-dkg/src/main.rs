@@ -1,4 +1,4 @@
-use frost_secp256k1_evm as frost;
+use frost_secp256k1 as frost;
 use frost::keys::dkg;
 use frost::Identifier;
 use rand::rngs::OsRng;

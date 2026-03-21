@@ -2,7 +2,8 @@ import { mkdtempSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { generatePrivateKey } from "viem/accounts";
-import { dkgPart1, dkgPart2, dkgPart3 } from "./frost/dkg.js";
+import { dkgPart1, dkgPart2, dkgPart3, writeDkgKeys } from "./frost/dkg.js";
+import { getPublicKey, runLocalCeremony } from "./frost/cli.js";
 import { ChorusAgent } from "./xmtp/agent.js";
 import type { ProtocolMessage } from "./xmtp/messages.js";
 import type { Hex } from "./ceremony/types.js";
@@ -166,7 +167,21 @@ async function main() {
   console.log(`public key package: ${pubKeys[0]?.slice(0, 40)}...`);
   console.log(`key shares generated: ${Object.keys(results).length}`);
 
-  console.log("\nDKG over XMTP complete. no single agent ever saw the full private key.");
+  // write DKG keys as safe-frost compatible files
+  const dkgKeysDir = join(tmpdir(), "chorus-dkg-keys-" + Date.now());
+  writeDkgKeys(dkgKeysDir, results as any, pubKeys[0]!);
+  const pk = getPublicKey(dkgKeysDir);
+  console.log(`\ngroup address: ${pk.address}`);
+  console.log(`keys written to: ${dkgKeysDir}`);
+
+  // run a signing ceremony with the DKG-generated keys
+  console.log("\n--- signing with DKG keys ---");
+  const testMsg = "0x" + "42".repeat(32);
+  const sig = runLocalCeremony(dkgKeysDir, [0, 1], testMsg);
+  console.log(`signature rx: 0x${sig.rx.toString(16).slice(0, 16)}...`);
+
+  console.log("\nDKG over XMTP -> signing: end-to-end complete.");
+  console.log("no single agent ever saw the full private key.");
 
   for (const agent of agents) {
     await agent.stop();

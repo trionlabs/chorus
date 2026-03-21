@@ -138,9 +138,20 @@ Beyond gas, FROST provides signer privacy - you can't tell which agents signed f
 
 ## Key generation
 
-Key shares are generated using a trusted dealer (`safe-frost split`) for the demo. The FROST protocol supports full distributed key generation (DKG) where no party ever sees the complete key - the DKG ceremony state machine is implemented in `src/ceremony/dkg.ts` and the XMTP message types are defined for all three DKG rounds. In production, DKG would run over XMTP with round 2 secret shares sent via DM only.
+Two modes supported:
 
-The signing ceremony (per-transaction FROST protocol) runs fully over XMTP in the demo.
+**Distributed Key Generation (DKG) over XMTP** - no party ever sees the full key:
+```bash
+pnpm demo:dkg    # 3 agents run DKG over XMTP with DM-only secret shares
+```
+Round 1 commitments are broadcast to the group. Round 2 secret shares are sent via XMTP DMs only - the agent enforces this and drops any round 2 message arriving via group chat. All three agents derive their key share independently and agree on the same group public key.
+
+**Trusted dealer** (quick setup for testing):
+```bash
+safe-frost split --threshold 2 --signers 3
+```
+
+Both produce compatible key material. The signing ceremony runs over XMTP in both cases.
 
 ## Setup
 
@@ -199,9 +210,10 @@ src/
   xmtp/messages.ts          - protocol message types
   agent/handler.ts          - agent orchestration
   agent/evaluator.ts        - rule-based policy evaluation
-  uniswap/client.ts         - Uniswap V3 swap builder
+  uniswap/client.ts         - Uniswap V3 swap builder (chain-aware)
+  frost/dkg.ts              - DKG CLI wrapper (distributed key generation)
   chain/abi.ts              - AgentConsensus ABI
-  chain/client.ts           - viem client for Base Sepolia
+  chain/config.ts           - chain selection (CHAIN=mainnet or sepolia)
 
 scripts/
   deploy/
