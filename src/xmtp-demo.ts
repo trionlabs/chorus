@@ -124,7 +124,7 @@ async function main() {
     }],
     functionName: "exactInputSingle",
     args: [{
-      tokenIn: USDC, tokenOut: WETH, fee: 3000,
+      tokenIn: USDC, tokenOut: WETH, fee: chain.id === 8453 ? 500 : 3000,
       recipient: smartAccount.address,
       amountIn: 5_000_000n, // 5 USDC
       amountOutMinimum: 0n, sqrtPriceLimitX96: 0n,
