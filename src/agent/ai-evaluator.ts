@@ -16,37 +16,30 @@ export async function aiEvaluate(
     usdcBalance?: string;
     delegationCaveats?: string;
     recentProposals?: number;
+    swapDescription?: string;
   }
 ): Promise<AiEvaluation> {
-  const contextBlock = context
-    ? `
-Current state:
-- Alice's USDC balance: ${context.usdcBalance ?? "unknown"}
-- Delegation caveats: ${context.delegationCaveats ?? "Uniswap Router only, max 100 USDC, exactInputSingle + approve only"}
-- Recent proposals in last 10 min: ${context.recentProposals ?? 0}`
-    : "";
+  const swapDesc = context?.swapDescription ?? `call to ${tx.to} with ${tx.value.toString()} raw units`;
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 300,
+    max_tokens: 200,
     system: role.systemPrompt,
     messages: [
       {
         role: "user",
         content: `Evaluate this proposal for the FROST signing committee.
 
-Transaction:
-- target: ${tx.to}
-- value: ${tx.value.toString()} (raw units)
-- data: ${tx.data.slice(0, 20)}${tx.data.length > 20 ? "..." : ""} (${tx.data.length / 2 - 1} bytes)
-${contextBlock}
+Proposed action: ${swapDesc}
+Target contract: ${tx.to}
+Alice's USDC balance: ${context?.usdcBalance ?? "unknown"}
+Delegation caveats: ${context?.delegationCaveats ?? "Uniswap Router only, max 100 USDC"}
+Recent proposals: ${context?.recentProposals ?? 0}
 
 Respond with exactly one line:
-ACCEPT: <your reason>
+ACCEPT: <reason>
 or
-REJECT: <your reason>
-
-Be specific in your reasoning. One line only.`,
+REJECT: <reason>`,
       },
     ],
   });
@@ -61,6 +54,5 @@ Be specific in your reasoning. One line only.`,
     return { approved: false, reason: text.slice(7).trim() };
   }
 
-  // fallback: if Claude doesn't follow format, treat as rejection (safe default)
   return { approved: false, reason: `unclear response: ${text.slice(0, 100)}` };
 }

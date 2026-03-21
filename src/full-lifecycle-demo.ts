@@ -35,13 +35,33 @@ const SIGNERS = 3;
 const NAMES = ["Guard", "Judge", "Steward"];
 const INTERACTIVE = process.argv.includes("--interactive") || process.argv.includes("-i");
 
+const DIM = "\x1b[2m";
+const BOLD = "\x1b[1m";
+const GREEN = "\x1b[32m";
+const RED = "\x1b[31m";
+const CYAN = "\x1b[36m";
+const YELLOW = "\x1b[33m";
+const MAGENTA = "\x1b[35m";
+const RESET = "\x1b[0m";
+
 function pause(label: string): Promise<void> {
   if (!INTERACTIVE) return Promise.resolve();
   return new Promise((resolve) => {
-    process.stdout.write(`\n>>> ${label} - press enter to continue...`);
+    process.stdout.write(`\n${YELLOW}>>> ${label}${RESET}\n${DIM}press enter to continue...${RESET}`);
     process.stdin.once("data", () => resolve());
     process.stdin.resume();
   });
+}
+
+function header(text: string) {
+  const line = "=".repeat(64);
+  console.log(`\n${CYAN}${line}${RESET}`);
+  console.log(`${BOLD}  ${text}${RESET}`);
+  console.log(`${CYAN}${line}${RESET}\n`);
+}
+
+function phase(num: number, text: string) {
+  console.log(`\n${MAGENTA}--- phase ${num}: ${text} ---${RESET}\n`);
 }
 
 function explorerUrl(chain: { id: number }, hash: string): string {
@@ -72,7 +92,7 @@ async function main() {
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
   const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
-  console.log("=== CHORUS FULL LIFECYCLE ===");
+  header("CHORUS - FULL LIFECYCLE DEMO");
   console.log(`chain: ${chain.name}`);
   console.log(`contract: ${explorerAddr(chain, CONTRACT)}`);
   console.log(`protocol: FROST RFC 9591 (secp256k1)`);
@@ -87,7 +107,7 @@ async function main() {
   await pause("agent roles defined. next: distributed key generation over XMTP");
 
   // ====== PHASE 1: DKG OVER XMTP ======
-  console.log("\n--- phase 1: distributed key generation over XMTP ---\n");
+  phase(1, "distributed key generation over XMTP");
 
   const walletKeys: Hex[] = Array.from({ length: SIGNERS }, () => generatePrivateKey());
   const runDir = mkdtempSync(join(tmpdir(), "chorus-lifecycle-"));
@@ -112,14 +132,14 @@ async function main() {
       const id = i + 1;
       agents[i]!.on("dkg/round1", async (msg, reply, sendDm) => {
         if (msg.type !== "dkg/round1" || msg.signerIndex === id) return;
-        console.log(`[${NAMES[i]}] <- dkg/round1 from ${NAMES[msg.signerIndex - 1]} (XMTP group)`);
+        console.log(`${DIM}[${NAMES[i]}]${RESET} ${CYAN}<- dkg/round1${RESET} from ${BOLD}${NAMES[msg.signerIndex - 1]}${RESET} ${DIM}(XMTP group)${RESET}`);
         round1Received[id]![msg.signerIndex] = msg.commitments;
         if (Object.keys(round1Received[id]!).length === SIGNERS - 1) {
-          console.log(`[${NAMES[i]}] all round1 received, computing round2 shares...`);
+          console.log(`${BOLD}[${NAMES[i]}]${RESET} ${GREEN}all round1 received${RESET}, computing round2 shares...`);
           const p2 = dkgPart2(secrets[id]!, round1Received[id]!);
           round2Secrets[id] = p2.secret_package;
           for (const [pid, share] of Object.entries(p2.round2_packages)) {
-            console.log(`[${NAMES[i]}] -> dkg/round2 to ${NAMES[Number(pid) - 1]} (XMTP DM - secret)`);
+            console.log(`${DIM}[${NAMES[i]}]${RESET} ${RED}-> dkg/round2${RESET} to ${BOLD}${NAMES[Number(pid) - 1]}${RESET} ${RED}(XMTP DM - SECRET)${RESET}`);
             await sendDm(agents[Number(pid)-1]!.address as Hex, {
               type: "dkg/round2", ceremonyId: "lc", fromIndex: id, toIndex: Number(pid), share,
             });
@@ -129,12 +149,12 @@ async function main() {
 
       agents[i]!.on("dkg/round2", async (msg, reply) => {
         if (msg.type !== "dkg/round2" || msg.toIndex !== id) return;
-        console.log(`[${NAMES[i]}] <- dkg/round2 from ${NAMES[msg.fromIndex - 1]} (XMTP DM - secret share)`);
+        console.log(`${DIM}[${NAMES[i]}]${RESET} ${RED}<- dkg/round2${RESET} from ${BOLD}${NAMES[msg.fromIndex - 1]}${RESET} ${RED}(XMTP DM - SECRET share)${RESET}`);
         round2Received[id]![msg.fromIndex] = msg.share;
         if (Object.keys(round2Received[id]!).length === SIGNERS - 1) {
           const p3 = dkgPart3(round2Secrets[id]!, round1Received[id]!, round2Received[id]!);
           dkgResults[id] = p3;
-          console.log(`[${NAMES[i]}] DKG finalized - key share derived`);
+          console.log(`${BOLD}${GREEN}[${NAMES[i]}] DKG finalized - key share derived${RESET}`);
           await reply({ type: "dkg/confirm", ceremonyId: "lc", signerIndex: id, publicKey: p3.public_key_package.slice(0, 20) + "..." });
           dkgDone++; check();
         }
@@ -185,7 +205,7 @@ async function main() {
   await pause("DKG complete. next: register committee on-chain");
 
   // ====== PHASE 2: REGISTER COMMITTEE ON-CHAIN ======
-  console.log("\n--- phase 2: register committee on-chain ---\n");
+  phase(2, "register committee on-chain");
 
   const regTx = await walletClient.writeContract({
     address: CONTRACT as `0x${string}`, abi: agentConsensusAbi,
@@ -206,7 +226,7 @@ async function main() {
   await pause("committee registered on-chain. next: set up alice's delegation + uniswap swap");
 
   // ====== PHASE 3: ALICE'S DELEGATION + SIGNING OVER XMTP ======
-  console.log("\n--- phase 3: alice's erc-7710 delegation ---\n");
+  phase(3, "alice's erc-7710 delegation");
 
   const env = getDeleGatorEnvironment(chain.id);
   const smartAccount = await toMetaMaskSmartAccount({
@@ -280,7 +300,7 @@ async function main() {
 
   await pause("delegation created. next: signing ceremony over XMTP");
 
-  console.log("\n--- phase 4: signing ceremony over XMTP ---\n");
+  phase(4, "signing ceremony over XMTP");
 
   const nonce = await publicClient.readContract({
     address: CONTRACT as `0x${string}`, abi: agentConsensusAbi, functionName: "getNonce", args: [committeeId],
@@ -332,19 +352,20 @@ async function main() {
     for (const t of ["frost/accept","frost/reject","frost/round1","frost/signing-package","frost/round2","frost/signature","frost/executed"]) {
       agents[idx]!.on(t, async (msg, reply) => {
         if (msg.type === "frost/round1" && "signerIndex" in msg) {
-          console.log(`[${NAMES[idx]}] <- frost/round1 from ${NAMES[(msg as any).signerIndex]} (XMTP group)`);
+          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- frost/round1${RESET} from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
         } else if (msg.type === "frost/signing-package") {
-          console.log(`[${NAMES[idx]}] <- frost/signing-package from coordinator (XMTP group)`);
+          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- signing-package${RESET} from coordinator ${DIM}(XMTP)${RESET}`);
         } else if (msg.type === "frost/round2" && "signerIndex" in msg) {
-          console.log(`[${NAMES[idx]}] <- frost/round2 share from ${NAMES[(msg as any).signerIndex]} (XMTP group)`);
+          console.log(`${DIM}[${NAMES[idx]}]${RESET} ${CYAN}<- frost/round2${RESET} share from ${BOLD}${NAMES[(msg as any).signerIndex]}${RESET} ${DIM}(XMTP)${RESET}`);
         } else if (msg.type === "frost/signature") {
-          console.log(`[${NAMES[idx]}] <- frost/signature aggregated (XMTP group)`);
+          console.log(`\n${BOLD}${GREEN}FROST signature aggregated${RESET} ${DIM}(96 bytes, ~5,300 gas to verify)${RESET}`);
         } else if (msg.type === "frost/executed" && "txHash" in msg && idx === 0) {
           // only show once (from first agent)
           const txHash = (msg as any).txHash;
           if (txHash !== "0x0") {
-            console.log(`\non-chain execution confirmed: ${txHash}`);
-            console.log(`explorer: ${explorerUrl(chain, txHash)}`);
+            console.log(`\n${BOLD}${GREEN}on-chain execution confirmed${RESET}`);
+            console.log(`  tx: ${txHash}`);
+            console.log(`  ${CYAN}${explorerUrl(chain, txHash)}${RESET}`);
           }
         }
         await processMsg(msg, reply);
@@ -361,18 +382,22 @@ async function main() {
         const role = AGENT_ROLES[idx]!;
         console.log(`\n${"=".repeat(60)}`);
         console.log(`[${NAMES[idx]}] evaluating with Claude...`);
-        console.log(`  role: ${role.description}`);
+        console.log(`  ${DIM}role: ${role.description}${RESET}`);
         result = await aiEvaluate(msg.transaction, role, {
+          swapDescription: "swap 0.5 USDC for WETH on Uniswap V3 via exactInputSingle",
           usdcBalance: `${Number(usdcBal) / 1e6} USDC`,
-          delegationCaveats: "AllowedTargets: Uniswap Router + USDC. AllowedMethods: exactInputSingle + approve. Max 100 USDC.",
+          delegationCaveats: "AllowedTargets: Uniswap Router + USDC only. AllowedMethods: exactInputSingle + approve only. Max 100 USDC per tx.",
+          recentProposals: 0,
         });
-        const icon = result.approved ? "[+]" : "[X]";
-        console.log(`  ${icon} ${result.approved ? "ACCEPT" : "REJECT"}: ${result.reason}`);
+        const color = result.approved ? GREEN : RED;
+        const icon = result.approved ? "+" : "X";
+        console.log(`  ${BOLD}${color}[${icon}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET}: ${result.reason}`);
         console.log(`${"=".repeat(60)}`);
       } else {
         result = evaluate(msg.transaction, POLICIES[idx]!);
-        const icon = result.approved ? "[+]" : "[X]";
-        console.log(`\n  ${icon} [${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"} - ${result.reason}`);
+        const color = result.approved ? GREEN : RED;
+        const icon = result.approved ? "+" : "X";
+        console.log(`\n${BOLD}${color}  [${icon}] [${NAMES[idx]}] ${result.approved ? "ACCEPT" : "REJECT"}${RESET} ${DIM}- ${result.reason}${RESET}`);
       }
       contexts[idx] = createSigningCeremony(
         { proposalId: msg.proposalId, proposer: msg.proposer, transaction: msg.transaction, timestamp: msg.timestamp },
@@ -439,14 +464,14 @@ async function main() {
   console.log(`signing ceremony: ${signingElapsed}s`);
   console.log(`total time: ${totalElapsed}s`);
 
-  console.log("\n=== LIFECYCLE COMPLETE ===");
-  console.log("1. DKG: 3 agents generated keys over XMTP (round2 via DM, never broadcast)");
-  console.log("2. committee registered on-chain with DKG-derived group public key");
-  console.log("3. alice delegated to committee: uniswap only, USDC only (ERC-7710)");
-  console.log("4. signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP");
-  console.log("5. delegation redeemed -> uniswap swap from alice's account -> WETH received");
-  console.log("6. 96-byte FROST signature verified on-chain (~5,300 gas, constant)");
-  console.log("7. no agent ever held the full private key");
+  header("LIFECYCLE COMPLETE");
+  console.log(`${GREEN}1.${RESET} DKG: 3 agents generated keys over XMTP (round2 via DM, never broadcast)`);
+  console.log(`${GREEN}2.${RESET} committee registered on-chain with DKG-derived group public key`);
+  console.log(`${GREEN}3.${RESET} alice delegated to committee: uniswap only, USDC only (ERC-7710)`);
+  console.log(`${GREEN}4.${RESET} signing: Guard rejected, Judge+Steward accepted, FROST ceremony over XMTP`);
+  console.log(`${GREEN}5.${RESET} delegation redeemed -> uniswap swap from alice's account -> WETH received`);
+  console.log(`${GREEN}6.${RESET} 96-byte FROST signature verified on-chain (~5,300 gas, constant)`);
+  console.log(`${BOLD}${GREEN}7.${RESET}${BOLD} no agent ever held the full private key${RESET}`);
 
   for (const a of agents) await a.stop();
 }
