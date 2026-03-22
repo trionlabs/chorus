@@ -16,3 +16,6 @@ scripts/**/*.js
 standard-json-input*.json
 demo-subtitles.srt
 demo-description.md
+submission.json
+thread_draft.md
+proposed.md
