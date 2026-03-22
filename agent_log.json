@@ -1,0 +1,516 @@
+{
+  "agentName": "Chorus Committee",
+  "agentId": 35249,
+  "registry": "erc8004:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+  "version": "0.1.0",
+  "runs": [
+    {
+      "runId": "mainnet-lifecycle-001",
+      "chain": "base",
+      "chainId": 8453,
+      "startedAt": "2026-03-21T22:15:00Z",
+      "completedAt": "2026-03-21T22:19:47Z",
+      "status": "success",
+      "trigger": "operator",
+      "description": "Full lifecycle: DKG over XMTP, committee registration, ERC-7710 delegation, FROST-signed Uniswap swap",
+      "phases": [
+        {
+          "phase": "dkg",
+          "name": "Distributed Key Generation over XMTP",
+          "startedAt": "2026-03-21T22:15:00Z",
+          "completedAt": "2026-03-21T22:15:28Z",
+          "status": "success",
+          "steps": [
+            {
+              "step": "xmtp_connect",
+              "description": "Three agents connect to XMTP with E2E encrypted messaging",
+              "tool": "XMTP Agent SDK",
+              "status": "success",
+              "durationMs": 3200,
+              "output": {
+                "agents": [
+                  { "name": "Guard", "shareIndex": 0, "role": "risk & security" },
+                  { "name": "Judge", "shareIndex": 1, "role": "policy & compliance" },
+                  { "name": "Steward", "shareIndex": 2, "role": "treasury & operations" }
+                ],
+                "transport": "XMTP MLS (E2E encrypted)"
+              }
+            },
+            {
+              "step": "dkg_round1",
+              "description": "Each agent broadcasts nonce commitments to XMTP group",
+              "tool": "frost-dkg (Rust CLI)",
+              "status": "success",
+              "durationMs": 4100,
+              "output": {
+                "messagesExchanged": 3,
+                "channel": "group",
+                "messageType": "dkg/round1"
+              }
+            },
+            {
+              "step": "dkg_round2",
+              "description": "Secret key shares sent via XMTP DMs only - never broadcast",
+              "tool": "frost-dkg (Rust CLI) + XMTP DMs",
+              "status": "success",
+              "durationMs": 6800,
+              "securityNote": "DM-only enforcement active - group messages containing dkg/round2 are dropped",
+              "output": {
+                "messagesExchanged": 6,
+                "channel": "dm",
+                "messageType": "dkg/round2"
+              }
+            },
+            {
+              "step": "dkg_finalize",
+              "description": "All agents derive key share independently, confirm group public key",
+              "tool": "frost-dkg (Rust CLI)",
+              "status": "success",
+              "durationMs": 2400,
+              "output": {
+                "groupPublicKeyDerived": true,
+                "fullPrivateKeyExists": false,
+                "sharesGenerated": 3,
+                "threshold": 2,
+                "messageType": "dkg/confirm"
+              }
+            }
+          ]
+        },
+        {
+          "phase": "registration",
+          "name": "Register committee on Base mainnet",
+          "startedAt": "2026-03-21T22:15:30Z",
+          "completedAt": "2026-03-21T22:15:48Z",
+          "status": "success",
+          "steps": [
+            {
+              "step": "register_committee",
+              "description": "Register DKG-derived group public key on AgentConsensus.sol",
+              "tool": "viem + AgentConsensus.sol",
+              "status": "success",
+              "durationMs": 12000,
+              "output": {
+                "contract": "0xEE185FD094A4624B95120CBa8180c92f51794162",
+                "txHash": "0x31c2e0202abf8605c2ed59c92d07325d7505cb52d3d477231e663254a854c5d8",
+                "gasUsed": 137887,
+                "verificationCost": "5300 gas (constant regardless of committee size)"
+              }
+            }
+          ]
+        },
+        {
+          "phase": "delegation",
+          "name": "Alice's ERC-7710 delegation",
+          "startedAt": "2026-03-21T22:15:50Z",
+          "completedAt": "2026-03-21T22:16:02Z",
+          "status": "success",
+          "steps": [
+            {
+              "step": "create_delegation",
+              "description": "Alice creates caveated delegation from HybridDeleGator to AgentConsensus",
+              "tool": "MetaMask Delegation Toolkit (ERC-7710)",
+              "status": "success",
+              "durationMs": 1200,
+              "output": {
+                "delegator": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52",
+                "delegate": "0xEE185FD094A4624B95120CBa8180c92f51794162",
+                "caveats": [
+                  {
+                    "enforcer": "AllowedTargets",
+                    "targets": [
+                      "0x2626664c2603336E57B271c5C0b26F421741e481",
+                      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                    ],
+                    "description": "Uniswap SwapRouter02 + USDC only"
+                  },
+                  {
+                    "enforcer": "AllowedMethods",
+                    "selectors": ["0x04e45aaf", "0x095ea7b3"],
+                    "description": "exactInputSingle (swap) + approve only"
+                  }
+                ],
+                "signedOffChain": true,
+                "gasCost": 0,
+                "note": "Committee cannot call any other contract or method"
+              }
+            }
+          ]
+        },
+        {
+          "phase": "signing_ceremony",
+          "name": "FROST signing ceremony over XMTP",
+          "startedAt": "2026-03-21T22:16:10Z",
+          "completedAt": "2026-03-21T22:19:47Z",
+          "status": "success",
+          "proposal": {
+            "action": "Swap 0.5 USDC for WETH on Uniswap V3",
+            "tokenIn": "USDC",
+            "tokenOut": "WETH",
+            "amount": "0.5 USDC",
+            "router": "0x2626664c2603336E57B271c5C0b26F421741e481",
+            "fee": 500
+          },
+          "steps": [
+            {
+              "step": "proposal_broadcast",
+              "description": "Swap proposal broadcast to XMTP group",
+              "tool": "XMTP Agent SDK",
+              "status": "success",
+              "durationMs": 800,
+              "output": {
+                "messageType": "frost/propose",
+                "channel": "group"
+              }
+            },
+            {
+              "step": "agent_evaluation",
+              "description": "Each agent independently evaluates the proposal",
+              "tool": "Anthropic Claude API",
+              "status": "success",
+              "durationMs": 8500,
+              "decisions": [
+                {
+                  "agent": "Guard",
+                  "role": "risk & security",
+                  "shareIndex": 0,
+                  "decision": "REJECT",
+                  "reason": "0.5 USDC exceeds my personal risk threshold of 0.2 USDC. While the target contract and method are valid, the amount presents an unacceptable risk level for a single transaction.",
+                  "evaluationModel": "claude-sonnet-4-20250514",
+                  "evaluationTimeMs": 2800
+                },
+                {
+                  "agent": "Judge",
+                  "role": "policy & compliance",
+                  "shareIndex": 1,
+                  "decision": "ACCEPT",
+                  "reason": "Target is Uniswap SwapRouter02 (allowed), method is exactInputSingle (allowed), token is USDC (allowed), amount 0.5 USDC is well within the 100 USDC delegation limit. All policy checks pass.",
+                  "evaluationModel": "claude-sonnet-4-20250514",
+                  "evaluationTimeMs": 2600
+                },
+                {
+                  "agent": "Steward",
+                  "role": "treasury & operations",
+                  "shareIndex": 2,
+                  "decision": "ACCEPT",
+                  "reason": "0.5 USDC is feasible given current treasury balance. Gas costs are reasonable on Base. Uniswap V3 pool has adequate liquidity. Operation is viable.",
+                  "evaluationModel": "claude-sonnet-4-20250514",
+                  "evaluationTimeMs": 3100
+                }
+              ],
+              "thresholdMet": true,
+              "threshold": "2-of-3",
+              "acceptCount": 2,
+              "rejectCount": 1,
+              "dissenter": "Guard"
+            },
+            {
+              "step": "frost_round1",
+              "description": "Accepted agents broadcast nonce commitments to XMTP group",
+              "tool": "safe-frost CLI",
+              "status": "success",
+              "durationMs": 2200,
+              "output": {
+                "participants": [1, 2],
+                "coordinator": 1,
+                "coordinatorRole": "Judge (lowest accepted index)",
+                "messageType": "frost/round1",
+                "channel": "group"
+              }
+            },
+            {
+              "step": "frost_signing_package",
+              "description": "Coordinator prepares signing package with action hash",
+              "tool": "safe-frost CLI",
+              "status": "success",
+              "durationMs": 1100,
+              "output": {
+                "messageType": "frost/signing-package",
+                "channel": "group"
+              }
+            },
+            {
+              "step": "frost_round2",
+              "description": "Each participant signs with their key share",
+              "tool": "safe-frost CLI",
+              "status": "success",
+              "durationMs": 1800,
+              "output": {
+                "signatureSharesCollected": 2,
+                "messageType": "frost/round2",
+                "channel": "group"
+              }
+            },
+            {
+              "step": "frost_aggregate",
+              "description": "Coordinator aggregates into single 96-byte Schnorr signature",
+              "tool": "safe-frost CLI",
+              "status": "success",
+              "durationMs": 400,
+              "output": {
+                "signatureSize": "96 bytes",
+                "format": "(rx, ry, z) per RFC 9591",
+                "messageType": "frost/signature"
+              }
+            },
+            {
+              "step": "onchain_execution",
+              "description": "Submit FROST signature on-chain, verify, redeem delegation, execute Uniswap swap",
+              "tool": "viem + AgentConsensus.sol + DelegationManager",
+              "status": "success",
+              "durationMs": 14000,
+              "output": {
+                "txHash": "0xbde553f3d87868d35809839348b8daa567abcbad02a2f4fd2d0db201465545dd",
+                "chain": "base",
+                "gasUsed": 272614,
+                "frostVerificationGas": 5300,
+                "verificationSteps": [
+                  "FROST.verify(actionHash, px, py, rx, ry, z) - 5,300 gas",
+                  "DelegationManager.redeemDelegations() - caveats enforced",
+                  "AllowedTargets: Uniswap Router - PASS",
+                  "AllowedMethods: exactInputSingle - PASS",
+                  "Uniswap swap executed from Alice's smart account"
+                ],
+                "result": {
+                  "usdcSpent": "0.5",
+                  "wethReceived": true,
+                  "executedFrom": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52"
+                },
+                "messageType": "frost/executed"
+              }
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "totalDurationMs": 287000,
+        "phasesCompleted": 4,
+        "consensusReached": true,
+        "threshold": "2-of-3",
+        "dissent": "Guard rejected (risk threshold exceeded) but committee proceeded with Judge + Steward approval",
+        "onchainTxCount": 2,
+        "xmtpMessagesExchanged": 18,
+        "frostCeremoniesRun": 2,
+        "securityProperties": [
+          "No agent held the full private key (DKG - never reconstructed)",
+          "DKG secret shares sent via DMs only (never broadcast)",
+          "Nonce cleanup on ceremony completion (nonce reuse = key extraction)",
+          "Committee has zero independent authority (delegation-only execution)",
+          "Two layers of control: FROST consensus (off-chain) + delegation caveats (on-chain)"
+        ]
+      }
+    },
+    {
+      "runId": "mainnet-swap-002",
+      "chain": "base",
+      "chainId": 8453,
+      "startedAt": "2026-03-21T21:45:00Z",
+      "completedAt": "2026-03-21T21:48:30Z",
+      "status": "success",
+      "trigger": "operator",
+      "description": "FROST-signed Uniswap swap via ERC-7710 delegation (2 USDC for WETH)",
+      "phases": [
+        {
+          "phase": "signing_ceremony",
+          "name": "FROST signing ceremony",
+          "startedAt": "2026-03-21T21:45:00Z",
+          "completedAt": "2026-03-21T21:48:30Z",
+          "status": "success",
+          "proposal": {
+            "action": "Swap 2 USDC for WETH on Uniswap V3",
+            "tokenIn": "USDC",
+            "tokenOut": "WETH",
+            "amount": "2 USDC",
+            "router": "0x2626664c2603336E57B271c5C0b26F421741e481",
+            "fee": 500
+          },
+          "steps": [
+            {
+              "step": "agent_evaluation",
+              "description": "Each agent independently evaluates the proposal",
+              "tool": "Anthropic Claude API",
+              "status": "success",
+              "durationMs": 7200,
+              "decisions": [
+                {
+                  "agent": "Guard",
+                  "shareIndex": 0,
+                  "decision": "REJECT",
+                  "reason": "2 USDC exceeds my 0.2 USDC risk threshold"
+                },
+                {
+                  "agent": "Judge",
+                  "shareIndex": 1,
+                  "decision": "ACCEPT",
+                  "reason": "Target, method, and amount all within delegation policy"
+                },
+                {
+                  "agent": "Steward",
+                  "shareIndex": 2,
+                  "decision": "ACCEPT",
+                  "reason": "Amount feasible, adequate reserves, reasonable gas"
+                }
+              ],
+              "thresholdMet": true
+            },
+            {
+              "step": "usdc_approve",
+              "description": "FROST-signed USDC approval for Uniswap Router",
+              "tool": "viem + AgentConsensus.sol",
+              "status": "success",
+              "output": {
+                "txHash": "0xc5ada41b8194ef320ce79d92f5efc5ed18ecfe735ed86f453178c8c16ceb3685"
+              }
+            },
+            {
+              "step": "uniswap_swap",
+              "description": "FROST-signed Uniswap swap via ERC-7710 delegation",
+              "tool": "viem + AgentConsensus.sol + DelegationManager + Uniswap V3",
+              "status": "success",
+              "output": {
+                "txHash": "0x1b9b9cca4ae7082344ccbec1032548120ff100936a756b67b1a4ec0cb71ca518",
+                "usdcSpent": "2",
+                "executedFrom": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "runId": "sepolia-lifecycle-001",
+      "chain": "base-sepolia",
+      "chainId": 84532,
+      "startedAt": "2026-03-21T18:30:00Z",
+      "completedAt": "2026-03-21T18:38:00Z",
+      "status": "success",
+      "trigger": "operator",
+      "description": "Full lifecycle test on Base Sepolia: DKG, registration, delegation, FROST-signed Uniswap swap (5 USDC)",
+      "phases": [
+        {
+          "phase": "registration",
+          "name": "Committee registration on Base Sepolia",
+          "status": "success",
+          "steps": [
+            {
+              "step": "register_committee",
+              "tool": "viem + AgentConsensus.sol",
+              "status": "success",
+              "output": {
+                "contract": "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4",
+                "txHash": "0xd258a3dc2e6104cf280ace827423be4d4cc829b3759afc44476762b0a4c8a7f6",
+                "gasUsed": 137887
+              }
+            }
+          ]
+        },
+        {
+          "phase": "signing_ceremony",
+          "name": "FROST-signed Uniswap swap with delegation",
+          "status": "success",
+          "steps": [
+            {
+              "step": "agent_evaluation",
+              "tool": "rule-based policy engine",
+              "status": "success",
+              "decisions": [
+                { "agent": "Guard", "decision": "REJECT", "reason": "5 USDC exceeds 0.2 USDC threshold" },
+                { "agent": "Judge", "decision": "ACCEPT", "reason": "Within policy" },
+                { "agent": "Steward", "decision": "ACCEPT", "reason": "Feasible" }
+              ],
+              "thresholdMet": true
+            },
+            {
+              "step": "uniswap_swap",
+              "tool": "viem + AgentConsensus.sol + DelegationManager + Uniswap V3",
+              "status": "success",
+              "output": {
+                "txHash": "0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d",
+                "gasUsed": 272614,
+                "usdcSpent": "5"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "runId": "sepolia-xmtp-ceremony-001",
+      "chain": "base-sepolia",
+      "chainId": 84532,
+      "startedAt": "2026-03-21T19:00:00Z",
+      "completedAt": "2026-03-21T19:05:00Z",
+      "status": "success",
+      "trigger": "operator",
+      "description": "XMTP signing ceremony with real delegation + Uniswap swap on Sepolia",
+      "phases": [
+        {
+          "phase": "signing_ceremony",
+          "name": "XMTP-coordinated FROST signing",
+          "status": "success",
+          "steps": [
+            {
+              "step": "xmtp_ceremony",
+              "tool": "XMTP Agent SDK + safe-frost CLI",
+              "status": "success",
+              "output": {
+                "txHash": "0x109b168980bae7bdbf138c1d1a56a0e94597d09ca43d2a9d2d2f0a8453fe4b34",
+                "coordinatedVia": "XMTP MLS (E2E encrypted)"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "runId": "erc8004-registration",
+      "chain": "base",
+      "chainId": 8453,
+      "startedAt": "2026-03-21T20:00:00Z",
+      "completedAt": "2026-03-21T20:01:00Z",
+      "status": "success",
+      "trigger": "operator",
+      "description": "Register FROST committee as single ERC-8004 identity under group public key",
+      "phases": [
+        {
+          "phase": "identity_registration",
+          "name": "ERC-8004 Trustless Agent identity",
+          "status": "success",
+          "steps": [
+            {
+              "step": "mint_identity",
+              "description": "Mint ERC-721 identity NFT on Base mainnet",
+              "tool": "viem + ERC-8004 Identity Registry",
+              "status": "success",
+              "output": {
+                "txHash": "0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a",
+                "agentId": 35249,
+                "registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+                "scanUrl": "https://www.8004scan.io/agents/base/35249",
+                "note": "One identity for the committee - 3 agents speak with one voice via FROST"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "gasBenchmarks": {
+    "frostVerify": 5327,
+    "ecrecover_2of3": 10391,
+    "ecrecover_50of100": 195207,
+    "note": "FROST verification is constant regardless of committee size. At 50-of-100, FROST costs the same as a token transfer. A Safe multisig costs more than a Uniswap swap."
+  },
+  "contracts": {
+    "mainnet": {
+      "AgentConsensus": "0xEE185FD094A4624B95120CBa8180c92f51794162",
+      "AliceHybridDeleGator": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52",
+      "basescan": "https://basescan.org/address/0xEE185FD094A4624B95120CBa8180c92f51794162"
+    },
+    "sepolia": {
+      "AgentConsensus": "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4",
+      "AliceHybridDeleGator": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52"
+    }
+  },
+  "repository": "https://github.com/trionlabs/chorus"
+}

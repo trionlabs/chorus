@@ -1,0 +1,85 @@
+{
+  "name": "Chorus Committee",
+  "description": "FROST threshold signing committee - agents evaluate proposals independently, produce a single 96-byte Schnorr proof if threshold agrees",
+  "version": "0.1.0",
+  "operator": {
+    "wallet": "0x4da26B4715A1e7E22c7F8a31aC92517E622EA3D4",
+    "chain": "base",
+    "chainId": 8453
+  },
+  "identity": {
+    "erc8004": {
+      "agentId": 35249,
+      "registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "chain": "base",
+      "registrationTx": "0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a"
+    }
+  },
+  "agents": [
+    {
+      "name": "Guard",
+      "role": "risk & security",
+      "shareIndex": 0,
+      "capabilities": ["risk assessment", "velocity detection", "anomaly flagging"]
+    },
+    {
+      "name": "Judge",
+      "role": "policy & compliance",
+      "shareIndex": 1,
+      "capabilities": ["delegation caveat verification", "target allowlist enforcement", "method selector validation"]
+    },
+    {
+      "name": "Steward",
+      "role": "treasury & operations",
+      "shareIndex": 2,
+      "capabilities": ["balance sufficiency checks", "gas estimation", "operational viability assessment"]
+    }
+  ],
+  "protocol": {
+    "type": "FROST",
+    "specification": "RFC 9591",
+    "curve": "secp256k1",
+    "threshold": "2-of-3",
+    "verificationGas": 5300,
+    "signatureSize": "96 bytes"
+  },
+  "tools": [
+    "safe-frost (Schnorr verifier + signing CLI)",
+    "frost-dkg (distributed key generation CLI)",
+    "XMTP Agent SDK (E2E encrypted messaging)",
+    "MetaMask Delegation Toolkit (ERC-7710)",
+    "Uniswap V3 SwapRouter02",
+    "viem (Ethereum client)",
+    "Anthropic Claude API (AI evaluation)"
+  ],
+  "techStack": {
+    "onchain": "Solidity 0.8.29 (AgentConsensus.sol + FROST.sol)",
+    "offchain": "TypeScript (Node.js)",
+    "cryptography": "Rust (frost-secp256k1)",
+    "messaging": "XMTP MLS (E2E encrypted)",
+    "chain": "Base (mainnet + Sepolia)"
+  },
+  "compute": {
+    "signing": "< 1 second per ceremony round",
+    "verification": "~5,300 gas (constant)",
+    "dkg": "< 30 seconds for 3-agent committee"
+  },
+  "taskCategories": [
+    "multi-agent consensus",
+    "threshold signing",
+    "delegated execution",
+    "token swaps",
+    "treasury management"
+  ],
+  "contracts": {
+    "mainnet": {
+      "AgentConsensus": "0xEE185FD094A4624B95120CBa8180c92f51794162",
+      "AliceHybridDeleGator": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52"
+    },
+    "sepolia": {
+      "AgentConsensus": "0xda9F141BEA3d4472dd4c17c0102d833Ec0202EB4",
+      "AliceHybridDeleGator": "0x0F85A0959004918a95c4ECD8EA9d93e5b8C2fC52"
+    }
+  },
+  "repository": "https://github.com/trionlabs/chorus"
+}
