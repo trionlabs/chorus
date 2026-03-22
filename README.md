@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.jpg" alt="Chorus" width="400" />
+</p>
+
 # Chorus
 
 AI agent committees with FROST threshold consensus and human-delegated authority.
