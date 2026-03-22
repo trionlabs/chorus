@@ -273,9 +273,18 @@ FROST is a coordination primitive for AI agents. Three agents (Guard, Judge, Ste
 
 The FROST signature is the receipt. Each on-chain `ConsensusReached` event records which committee reached consensus, the action hash they signed, and the nonce (preventing replay). The committee is registered on ERC-8004's Identity Registry on Base mainnet ([tx](https://basescan.org/tx/0xc4387b146e1ef8502bb503dbf03b41ccd0cf9b160b80ed139393b214c8672f2a)) with metadata describing its agents, threshold, group public key, and protocol. The 96-byte signature is verifiable by anyone calling `FROST.verify()` on-chain - a permanent, tamper-proof receipt that multiple independent agents evaluated and agreed.
 
+- [agent.json](./agent.json) - DevSpot Agent Manifest (committee metadata, capabilities, contracts)
+- [agent_log.json](./agent_log.json) - structured execution logs (decisions, tool calls, tx hashes, gas)
+- [8004scan identity](https://www.8004scan.io/agents/base/35249)
+
 ### Let the Agent Cook - No Humans Required
 
 Once Alice signs the ERC-7710 delegation, no human is in the loop. Agents receive proposals, evaluate independently using their role-specific criteria (risk analysis, policy compliance, operational viability), run the FROST signing ceremony over XMTP, and submit the signed transaction on-chain. The contract verifies the signature, redeems the delegation, enforces caveats, and executes. Alice can walk away. The agents operate autonomously within her bounds. Demonstrated end-to-end: a 5 USDC Uniswap swap executed from Alice's smart account without any human approval after the initial delegation ([tx](https://sepolia.basescan.org/tx/0x109b168980bae7bdbf138c1d1a56a0e94597d09ca43d2a9d2d2f0a8453fe4b34)).
+
+- [agent.json](./agent.json) - DevSpot Agent Manifest
+- [agent_log.json](./agent_log.json) - structured execution logs with agent decisions
+- [CONVERSATION.md](./CONVERSATION.md) - full human-agent collaboration log
+- [SKILL.md](./SKILL.md) - protocol spec for agents to join the committee
 
 ### Best Use of Delegations - ERC-7710
 
@@ -284,5 +293,13 @@ Alice creates an ERC-7710 delegation from her HybridDeleGator smart account to t
 ### Uniswap
 
 The committee executes real token swaps on Uniswap V3 (SwapRouter02) on Base Sepolia. The flow: agents evaluate a swap proposal (5 USDC for WETH), each independently checking risk, compliance, and viability. FROST ceremony produces the signature. AgentConsensus redeems Alice's delegation. Alice's smart account calls `exactInputSingle` on the Uniswap Router. Real USDC moves, real WETH received. Demonstrated with test USDC on Base Sepolia - Alice started with 20 USDC, the committee swapped 5, leaving 15 ([swap tx](https://sepolia.basescan.org/tx/0x9137adb6451de5abe13fda76cdba417c9a05624af1ac307fec7fd85717d5227d)). The delegation restricts swaps to max 100 USDC on Uniswap only - the committee cannot send tokens elsewhere or call other contracts.
+
+## Documentation
+
+- [CONVERSATION.md](./CONVERSATION.md) - human-agent collaboration log (full build transcript)
+- [SKILL.md](./SKILL.md) - protocol specification for agents joining the committee
+- [agent.json](./agent.json) - DevSpot Agent Manifest (committee metadata, tools, contracts)
+- [agent_log.json](./agent_log.json) - structured execution logs (agent decisions, tool calls, tx receipts)
+- [Demo video](https://youtu.be/JZUHojAohk0) - full lifecycle on Base mainnet with real USDC
 
 Built for [The Synthesis](https://synthesis.md/hack/) hackathon.
